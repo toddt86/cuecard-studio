@@ -821,6 +821,7 @@ html, body {
       <div class="user-info" id="userInfo">
         <img class="user-avatar" id="userAvatar" src="" alt="">
         <span class="user-name" id="userName"></span><span class="pro-badge" id="proBadge" style="display:none;">PRO</span>
+        <button class="auth-btn sign-out-btn" id="manageSubBtn" onclick="openCustomerPortal()" style="display:none;color:var(--accent);">Manage</button>
         <button class="auth-btn sign-out-btn" onclick="signOut()">Sign Out</button>
       </div>
     </div>
@@ -1156,6 +1157,7 @@ function applyProGating() {
     if (startBtn) startBtn.onclick = startPrompter;
     if (cuecardModeBtn) cuecardModeBtn.onclick = function() { setMode('cuecard'); };
     if (proBadge) proBadge.style.display = '';
+    document.getElementById('manageSubBtn').style.display = '';
     document.querySelectorAll('.pro-lock').forEach(function(el) { el.style.display = 'none'; });
   } else if (currentUser) {
     // Signed in but not pro - lock EVERYTHING
@@ -1166,6 +1168,7 @@ function applyProGating() {
     if (startBtn) startBtn.onclick = showUpgradeModal;
     if (cuecardModeBtn) cuecardModeBtn.onclick = showUpgradeModal;
     if (proBadge) proBadge.style.display = 'none';
+    document.getElementById('manageSubBtn').style.display = 'none';
     document.querySelectorAll('.pro-lock').forEach(function(el) { el.style.display = ''; });
     // Force auto mode if currently on cuecard
     if (document.querySelector('[data-mode="cuecard"].active')) {
@@ -1177,6 +1180,7 @@ function applyProGating() {
     // Not signed in
     goLiveBtn.style.display = 'none';
     if (proBadge) proBadge.style.display = 'none';
+    document.getElementById('manageSubBtn').style.display = 'none';
   }
 }
 
@@ -1186,6 +1190,37 @@ function showUpgradeModal() {
 
 function closeUpgradeModal() {
   document.getElementById('upgradeModal').classList.remove('active');
+}
+
+function openCustomerPortal() {
+  if (!currentUser) { showToast('Sign in first'); return; }
+
+  // Get stripeCustomerId from Firestore
+  db.collection('users').doc(currentUser.uid).collection('settings').doc('prefs').get()
+    .then(function(doc) {
+      if (!doc.exists || !doc.data().stripeCustomerId) {
+        showToast('No subscription found');
+        return;
+      }
+      showToast('Opening subscription manager...');
+      return fetch('/.netlify/functions/customer-portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId: doc.data().stripeCustomerId })
+      });
+    })
+    .then(function(res) { if (res) return res.json(); })
+    .then(function(data) {
+      if (data && data.url) {
+        window.location.href = data.url;
+      } else if (data && data.error) {
+        showToast('Error: ' + data.error);
+      }
+    })
+    .catch(function(err) {
+      console.error('Portal error:', err);
+      showToast('Error opening subscription manager');
+    });
 }
 
 document.getElementById('upgradeModal').addEventListener('click', function(e) {
