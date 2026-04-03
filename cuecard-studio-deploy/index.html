@@ -966,39 +966,40 @@ html, body {
 <!-- ════════ UPGRADE MODAL ════════ -->
 <div class="upgrade-overlay" id="upgradeModal">
   <div class="upgrade-box">
-    <h2>Start Your Free Trial</h2>
-    <p class="upgrade-sub">30 days free. Full access to everything. Cancel anytime.</p>
+    <h2>Try cuecard.studio Free</h2>
+    <p class="upgrade-sub">30 days. Full access. No charge until the trial ends.</p>
     <div class="upgrade-features">
+      <div>Auto Scroll and Cue Card teleprompter modes</div>
       <div>Live Mode: send scripts to your prompter remotely</div>
       <div>Saved Scripts with cloud sync across devices</div>
-      <div>Cue Card mode for natural delivery</div>
       <div>Team collaboration and shared scripts</div>
       <div>Settings sync across all your devices</div>
     </div>
     <div class="upgrade-plans">
-      <div class="upgrade-plan" onclick="startCheckout('monthly')">
-        <div class="upgrade-plan-info">
-          <div class="upgrade-plan-name">Monthly</div>
-          <div class="upgrade-plan-price">$3.99 / month</div>
-        </div>
-        <button class="upgrade-plan-btn">Start Trial</button>
+      <div class="upgrade-plan popular" onclick="startCheckout('monthly')" style="flex-direction:column;align-items:center;padding:20px;">
+        <div class="upgrade-plan-name" style="font-size:18px;margin-bottom:4px;">Start 30-Day Free Trial</div>
+        <div class="upgrade-plan-price" style="margin-bottom:12px;">Then $3.99 / month. Cancel anytime.</div>
+        <button class="upgrade-plan-btn" style="padding:12px 40px;font-size:15px;">Start Free Trial</button>
       </div>
-      <div class="upgrade-plan popular" onclick="startCheckout('annual')">
+    </div>
+    <div style="font-size:13px;color:var(--text-dim);margin-bottom:16px;text-align:center;">Or save by choosing a longer plan:</div>
+    <div class="upgrade-plans" style="gap:8px;">
+      <div class="upgrade-plan" onclick="startCheckout('annual')" style="padding:12px 16px;">
         <div class="upgrade-plan-info">
-          <div class="upgrade-plan-name">Annual <span class="upgrade-plan-badge">Save 37%</span></div>
-          <div class="upgrade-plan-price">$29.99 / year</div>
+          <div class="upgrade-plan-name" style="font-size:14px;">Annual <span class="upgrade-plan-badge">Save 37%</span></div>
+          <div class="upgrade-plan-price">$29.99 / year (30-day free trial)</div>
         </div>
-        <button class="upgrade-plan-btn">Start Trial</button>
+        <button class="upgrade-plan-btn" style="padding:6px 16px;font-size:12px;">Start Trial</button>
       </div>
       <div class="upgrade-plan" onclick="startCheckout('lifetime')">
         <div class="upgrade-plan-info">
-          <div class="upgrade-plan-name">Lifetime</div>
-          <div class="upgrade-plan-price">$49.99 one time</div>
+          <div class="upgrade-plan-name" style="font-size:14px;">Lifetime</div>
+          <div class="upgrade-plan-price">$49.99 one time. No trial needed.</div>
         </div>
-        <button class="upgrade-plan-btn">Buy Now</button>
+        <button class="upgrade-plan-btn" style="padding:6px 16px;font-size:12px;">Buy Now</button>
       </div>
     </div>
-    <div class="upgrade-trial">30-day free trial on Monthly and Annual plans. Your card won't be charged until the trial ends.</div>
+    <div style="height:16px;"></div>
     <button class="upgrade-close" onclick="closeUpgradeModal()">Maybe later</button>
   </div>
 </div>
