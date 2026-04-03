@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#080808">
+<title>How It Works - cuecard.studio</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #080808;
+  --bg-card: #111111;
+  --border: #1f1f1f;
+  --accent: #cc2828;
+  --accent-dim: rgba(204, 40, 40, 0.12);
+  --text: #f0f0f0;
+  --text-secondary: #999;
+  --text-dim: #555;
+  --radius: 12px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.container {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 32px;
+  transition: color 0.2s;
+}
+
+.back-link:hover { color: var(--text); text-decoration: none; }
+
+h1 {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  margin-bottom: 8px;
+}
+
+h1 span { color: var(--accent); }
+
+.subtitle {
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin-bottom: 48px;
+  line-height: 1.6;
+}
+
+.step {
+  margin-bottom: 48px;
+  padding: 28px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  position: relative;
+  overflow: hidden;
+}
+
+.step::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--accent);
+}
+
+.step-number {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+}
+
+.step h2 {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  letter-spacing: -0.3px;
+}
+
+.step p {
+  color: var(--text-secondary);
+  font-size: 15px;
+  margin-bottom: 12px;
+}
+
+.step p:last-child { margin-bottom: 0; }
+
+.step strong { color: var(--text); font-weight: 600; }
+
+.step .highlight {
+  display: inline-block;
+  background: var(--accent-dim);
+  color: var(--accent);
+  padding: 2px 10px;
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.key-list {
+  margin: 16px 0 0 0;
+  list-style: none;
+}
+
+.key-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.key-list li:last-child { border-bottom: none; }
+
+.key-tag {
+  display: inline-block;
+  background: var(--accent-dim);
+  color: var(--accent);
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 100px;
+  text-align: center;
+}
+
+/* Remote infographic */
+.remote-diagram {
+  position: relative;
+  max-width: 320px;
+  margin: 24px auto;
+}
+
+.remote-diagram img {
+  width: 100%;
+  border-radius: 12px;
+  display: block;
+}
+
+.remote-label {
+  position: absolute;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  color: #fff;
+  background: rgba(204, 40, 40, 0.92);
+  padding: 3px 8px;
+  border-radius: 5px;
+  white-space: nowrap;
+  pointer-events: none;
+  line-height: 1.3;
+  transform: translateX(-50%);
+}
+
+.remote-rec {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+  margin-top: 12px;
+  font-style: italic;
+}
+
+@media (max-width: 380px) {
+  .remote-label { font-size: 8px; padding: 2px 6px; }
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 48px 0;
+}
+
+.footer-note {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 13px;
+  margin-top: 48px;
+}
+
+.footer-note a { color: var(--text-secondary); }
+
+@media (max-width: 600px) {
+  .container { padding: 24px 16px 60px; }
+  h1 { font-size: 28px; }
+  .step { padding: 20px; }
+  .step h2 { font-size: 19px; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <a href="index.html" class="back-link">&#8592; Back to Prompter</a>
+
+  <h1>How <span>cuecard.studio</span> Works</h1>
+  <p class="subtitle">Everything you need to get set up in under two minutes. Whether you're using a phone in a teleprompter rig or a tablet on a stand, this guide covers it all.</p>
+
+  <!-- STEP 1 -->
+  <div class="step">
+    <div class="step-number">Step 1</div>
+    <h2>Sign In with Google</h2>
+    <p>Tap <strong>Sign In</strong> in the top right corner and log in with your Google account. Do this on <strong>every device you plan to use</strong> (your computer, your phone, your tablet, etc).</p>
+    <p>Once signed in, any script you save on one device instantly appears on all your other devices. Write a script on your laptop, open the app on your phone, and it's already there waiting for you.</p>
+    <p>Your settings (speed, font size, margins, mirror mode) are also saved to your account, so every device loads with your preferred setup.</p>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step">
+    <div class="step-number">Step 2</div>
+    <h2>Add to Your Home Screen</h2>
+    <p>This is important for phones and tablets used as teleprompters. Adding the app to your home screen removes the browser bar and gives you a <strong>full-screen experience</strong>, just like a native app.</p>
+    <p><strong>On iPhone/iPad (Safari or Chrome):</strong> Tap the Share button (square with an arrow), scroll down, tap "Add to Home Screen", then tap Add.</p>
+    <p><strong>On Android (Chrome):</strong> Tap the three-dot menu in the top right, then tap "Add to Home Screen".</p>
+    <p>From now on, launch cuecard.studio from your home screen. No browser bar, no distractions, just your script.</p>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step">
+    <div class="step-number">Step 3</div>
+    <h2>Load a Script</h2>
+    <p>You have three ways to get a script into the prompter:</p>
+    <p><strong>Paste directly:</strong> Paste or type your script into the text area. Line breaks and spacing are preserved exactly as you enter them.</p>
+    <p><strong>From Saved Scripts:</strong> If you're signed in, tap any script from your "My Scripts" list to load it instantly.</p>
+    <p><strong>Via Live Mode:</strong> The fastest option for studio use. See Step 5 below.</p>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="step">
+    <div class="step-number">Step 4</div>
+    <h2>Choose Your Mode and Start</h2>
+    <p><strong>Auto Scroll</strong> scrolls your script at a constant speed. Adjust speed with your remote's left/right arrows. Jump forward or back in the script with up/down arrows.</p>
+    <p><strong>Cue Card</strong> shows one sentence at a time. Tap the right side of the screen (or press your remote) to advance. Tap the left side to go back. Great for natural, conversational delivery.</p>
+    <p>Hit <strong>Start Prompter</strong>. The prompter opens in a paused state, giving you time to mount your device in your teleprompter rig. When you're ready, tap the screen or press your remote to begin.</p>
+  </div>
+
+  <!-- STEP 5 -->
+  <div class="step">
+    <div class="step-number">Step 5</div>
+    <h2>Live Mode: Send Scripts Remotely</h2>
+    <p>This is the feature that changes your workflow. <strong>No more touching your prompter device between takes.</strong></p>
+    <p><strong>On your prompter device</strong> (phone or tablet): Sign in, tap <span class="highlight">Go Live</span>, and mount it in your rig. It shows a pulsing red dot and waits for a script.</p>
+    <p><strong>On your computer:</strong> Sign in with the same Google account. Paste your script, then hit <span class="highlight">Send to Prompter</span>.</p>
+    <p>Your prompter device receives the script instantly and auto-launches into the prompter. It starts paused, waiting for your remote. When you finish a take, it returns to the waiting screen, ready for the next script.</p>
+    <p>You can keep sending new scripts from your desk without ever touching the prompter device. Update a script, hit Send again, and it refreshes automatically.</p>
+  </div>
+
+  <!-- REMOTE -->
+  <div class="step">
+    <div class="step-number">Remote Controls</div>
+    <h2>Bluetooth Remote Mapping</h2>
+    <p>Most Bluetooth teleprompter remotes work out of the box, including <strong>Padcaster</strong>, Parrot, Ikan, Neewer, Desview, and generic models. No special pairing or configuration needed beyond standard Bluetooth.</p>
+
+    <div style="margin: 24px auto; max-width: 400px; text-align: center;">
+      <img src="remote-infographic.svg" alt="Padcaster Bluetooth Teleprompter Remote - Button Mapping" style="width:100%; border-radius:12px;">
+      <p class="remote-rec">Padcaster Bluetooth Remote (recommended)</p>
+    </div>
+
+    <ul class="key-list">
+      <li><span class="key-tag">OK / Space / Enter</span> Play / Pause</li>
+      <li><span class="key-tag">Left Arrow</span> Decrease scroll speed</li>
+      <li><span class="key-tag">Right Arrow</span> Increase scroll speed</li>
+      <li><span class="key-tag">Up Arrow</span> Jump back in script</li>
+      <li><span class="key-tag">Down Arrow</span> Jump forward in script</li>
+      <li><span class="key-tag">Back / Return</span> Reset to top of script</li>
+      <li><span class="key-tag">F</span> Toggle fullscreen</li>
+    </ul>
+    <p style="margin-top:16px;">In <strong>Cue Card mode</strong>, any forward key (right, down, OK, space, enter) advances to the next card, and any back key (left, up) goes to the previous card.</p>
+  </div>
+
+  <!-- TIPS -->
+  <div class="step">
+    <div class="step-number">Tips</div>
+    <h2>Getting the Best Experience</h2>
+    <p><strong>Mirror mode</strong> flips the text horizontally for beam-splitter teleprompter setups. Enable it in the Options section before starting.</p>
+    <p><strong>Margins</strong> control how wide the text spans. Narrower margins keep text closer to the center of the screen (and closer to your camera lens), so your eye movement is less noticeable.</p>
+    <p><strong>Focus Zone</strong> adds two subtle lines in the center of the screen so your eyes always know where to look.</p>
+    <p><strong>Line breaks matter.</strong> However you format your script (blank lines between paragraphs, spacing between sections), it will look exactly the same on the prompter.</p>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="footer-note">
+    Questions or feature ideas? Reach out at <a href="mailto:hello@mintgreencreative.com">hello@mintgreencreative.com</a>
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "name": "cuecard.studio",
+  "short_name": "cuecard",
+  "description": "Free professional teleprompter with voice tracking, auto scroll, and cue cards",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "Logo_Black_Background.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
