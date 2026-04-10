@@ -2301,4 +2301,11 @@ document.getElementById('cueCardScreen').addEventListener('touchend', function(e
 function showHUD() {
   const hud = document.getElementById('prompterHUD'); hud.classList.remove('hidden'); state.hudVisible = true;
   clearTimeout(state.hudTimeout);
-  if (state.playing && state.mod
+  if (state.playing && state.mode !== 'cuecard') { state.hudTimeout = setTimeout(() => { hud.classList.add('hidden'); state.hudVisible = false; }, 4000); }
+}
+document.getElementById('prompterContent').addEventListener('mousemove', showHUD);
+
+updateSliderDisplay();
+</script>
+</body>
+</html>
