@@ -81,6 +81,107 @@ html, body {
   gap: 10px;
 }
 
+/* Remote selector */
+.remote-area {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  display: none;
+  z-index: 50;
+}
+.remote-area.visible { display: block; }
+
+.remote-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 20px;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.remote-btn:hover { background: rgba(204, 40, 40, 0.12); }
+.remote-btn svg { width: 14px; height: 14px; }
+
+.remote-panel {
+  display: none;
+  position: absolute;
+  top: 42px;
+  left: 0;
+  background: #121212;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  padding: 18px;
+  min-width: 280px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  color: white;
+}
+.remote-panel.open { display: block; }
+
+.remote-panel h3 {
+  margin: 0 0 10px 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #888;
+}
+
+.remote-panel select {
+  width: 100%;
+  background: #1e1e1e;
+  border: 1px solid #333;
+  color: white;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23888' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+.remote-panel select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.remote-legend {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #2a2a2a;
+}
+.remote-legend-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  padding: 4px 0;
+}
+.remote-legend-key {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+.remote-legend-action {
+  color: #ccc;
+}
+
+@media (max-width: 700px) {
+  .remote-area { top: 16px; left: 16px; }
+  .remote-panel { min-width: 260px; }
+}
+
 .auth-btn {
   padding: 8px 16px;
   border-radius: 20px;
@@ -1099,6 +1200,21 @@ html, body {
         <button class="auth-btn sign-out-btn" onclick="signOut()">Sign Out</button>
       </div>
     </div>
+
+    <div class="remote-area" id="remoteArea">
+      <button class="remote-btn" onclick="toggleRemotePanel(event)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="1.5" fill="currentColor"/><circle cx="16" cy="12" r="1.5" fill="currentColor"/><line x1="12" y1="9" x2="12" y2="15"/></svg>
+        Remote
+      </button>
+      <div class="remote-panel" id="remotePanel">
+        <h3>Teleprompter Remote</h3>
+        <select id="remoteSelect" onchange="setRemoteType(this.value)">
+          <option value="padcaster">Padcaster (default)</option>
+          <option value="ambitful">Ambitful Remote</option>
+        </select>
+        <div class="remote-legend" id="remoteLegend"></div>
+      </div>
+    </div>
   </div>
 
   <div class="setup-body">
@@ -1389,6 +1505,8 @@ auth.onAuthStateChanged(function(user) {
   if (user) {
     signInBtn.style.display = 'none';
     userInfo.classList.add('visible');
+    document.getElementById('remoteArea').classList.add('visible');
+    renderRemoteLegend();
     document.getElementById('userAvatar').src = user.photoURL || '';
     document.getElementById('userName').textContent = user.displayName || 'User';
     scriptsPanel.classList.add('visible');
@@ -1401,6 +1519,7 @@ auth.onAuthStateChanged(function(user) {
   } else {
     signInBtn.style.display = '';
     userInfo.classList.remove('visible');
+    document.getElementById('remoteArea').classList.remove('visible');
     scriptsPanel.classList.remove('visible');
     document.getElementById('goLiveBtn').style.display = 'none';
     document.getElementById('teamPanel').classList.remove('visible');
@@ -2093,7 +2212,9 @@ const state = {
   elapsedSeconds: 0, elapsedInterval: null,
   recognition: null,
   hudTimeout: null, hudVisible: true,
-  cueCards: [], cueIndex: 0, inLiveMode: false
+  cueCards: [], cueIndex: 0, inLiveMode: false,
+  remoteType: 'padcaster',
+  _ambitfulLastSpeedAt: 0, _ambitfulLastJumpAt: 0
 };
 
 function setMode(mode) {
@@ -2129,7 +2250,8 @@ function saveSettings() {
   if (!currentUser) return;
   const settings = {
     mode: state.mode, speed: state.speed, fontSize: state.fontSize, margin: state.margin,
-    mirror: state.mirror, focusZone: state.focusZone, countdownEnabled: state.countdownEnabled
+    mirror: state.mirror, focusZone: state.focusZone, countdownEnabled: state.countdownEnabled,
+    remoteType: state.remoteType
   };
   db.collection('users').doc(currentUser.uid).collection('settings').doc('prefs').set(settings, { merge: true })
     .catch(function(e) { console.log('Settings save error:', e); });
@@ -2163,6 +2285,12 @@ function loadSettings() {
       if (s.countdownEnabled !== undefined) {
         state.countdownEnabled = s.countdownEnabled;
         document.getElementById('countdownToggle').classList.toggle('active', s.countdownEnabled);
+      }
+      if (s.remoteType) {
+        state.remoteType = s.remoteType;
+        var sel = document.getElementById('remoteSelect');
+        if (sel) sel.value = s.remoteType;
+        renderRemoteLegend();
       }
     }).catch(function(e) { console.log('Settings load error:', e); });
 }
@@ -2430,8 +2558,125 @@ async function requestWakeLock() { if ('wakeLock' in navigator) try { state.wake
 function releaseWakeLock() { if (state.wakeLock) { state.wakeLock.release(); state.wakeLock = null; } }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (document.getElementById('prompterScreen').classList.contains('active') || document.getElementById('liveModeScreen').style.display === 'flex')) requestWakeLock(); });
 
+// ════════ Remote Profiles ════════
+const REMOTE_PROFILES = {
+  padcaster: {
+    name: 'Padcaster (default)',
+    legend: [
+      { key: 'Vol +', action: 'Speed up / Next cue' },
+      { key: 'Vol -', action: 'Speed down / Prev cue' },
+      { key: 'Space', action: 'Play / Pause' },
+      { key: 'Arrows', action: 'Scroll / Speed' }
+    ]
+  },
+  ambitful: {
+    name: 'Ambitful Remote',
+    legend: [
+      { key: 'OK', action: 'Play / Pause' },
+      { key: 'Joystick L/R', action: 'Speed down / up' },
+      { key: 'Joystick U/D', action: 'Scroll back / forward' },
+      { key: 'X', action: 'Reset to top' }
+    ]
+  }
+};
+
+function toggleRemotePanel(e) {
+  if (e) e.stopPropagation();
+  document.getElementById('remotePanel').classList.toggle('open');
+}
+
+function setRemoteType(type) {
+  state.remoteType = type;
+  renderRemoteLegend();
+  saveSettings();
+  showToast('Remote set to ' + REMOTE_PROFILES[type].name);
+}
+
+function renderRemoteLegend() {
+  var profile = REMOTE_PROFILES[state.remoteType] || REMOTE_PROFILES.padcaster;
+  var html = '';
+  for (var i = 0; i < profile.legend.length; i++) {
+    var row = profile.legend[i];
+    html += '<div class="remote-legend-row"><span class="remote-legend-key">' + row.key + '</span><span class="remote-legend-action">' + row.action + '</span></div>';
+  }
+  document.getElementById('remoteLegend').innerHTML = html;
+}
+
+// Close panel when clicking outside
+document.addEventListener('click', function(e) {
+  var panel = document.getElementById('remotePanel');
+  var area = document.getElementById('remoteArea');
+  if (panel && panel.classList.contains('open') && area && !area.contains(e.target)) {
+    panel.classList.remove('open');
+  }
+});
+
+// Ambitful throttled handler — runs BEFORE the default keyboard handler
+// Returns true if the event was consumed by the Ambitful profile
+function handleAmbitfulKey(e) {
+  if (state.remoteType !== 'ambitful') return false;
+  if (!document.getElementById('prompterScreen').classList.contains('active')) return false;
+
+  var now = Date.now();
+  var SPEED_THROTTLE_MS = 250;
+  var JUMP_THROTTLE_MS = 200;
+  var SCROLL_JUMP_PX = 120;
+
+  // X button → reset to top (works in both modes)
+  if (e.key === 'x' || e.key === 'X' || e.code === 'KeyX') {
+    e.preventDefault(); e.stopPropagation();
+    if (state.mode === 'cuecard') { state.cueIndex = 0; showCueCard(); }
+    else { resetScroll(); }
+    showHUD();
+    return true;
+  }
+
+  // OK button → play/pause (Enter is the default; Space also OK)
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault(); e.stopPropagation();
+    if (state.mode === 'cuecard') { cueNext(); }
+    else { togglePlayPause(); }
+    showHUD();
+    return true;
+  }
+
+  // Joystick left/right → speed (throttled)
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault(); e.stopPropagation();
+    if (now - state._ambitfulLastSpeedAt < SPEED_THROTTLE_MS) return true;
+    state._ambitfulLastSpeedAt = now;
+    if (state.mode === 'cuecard') {
+      e.key === 'ArrowLeft' ? cuePrev() : cueNext();
+    } else {
+      adjustSpeed(e.key === 'ArrowLeft' ? -1 : 1);
+    }
+    showHUD();
+    return true;
+  }
+
+  // Joystick up/down → scroll jump (throttled)
+  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    e.preventDefault(); e.stopPropagation();
+    if (now - state._ambitfulLastJumpAt < JUMP_THROTTLE_MS) return true;
+    state._ambitfulLastJumpAt = now;
+    if (state.mode === 'cuecard') {
+      e.key === 'ArrowUp' ? cuePrev() : cueNext();
+    } else {
+      var delta = e.key === 'ArrowUp' ? -SCROLL_JUMP_PX : SCROLL_JUMP_PX;
+      state.scrollPos = Math.max(0, Math.min(state.totalHeight, state.scrollPos + delta));
+      applyScroll();
+      updateProgress();
+    }
+    showHUD();
+    return true;
+  }
+
+  return false;
+}
+
 // Keyboard / Remote
 document.addEventListener('keydown', function(e) {
+  if (handleAmbitfulKey(e)) return;
   if (!document.getElementById('prompterScreen').classList.contains('active')) return;
   if (state.mode === 'cuecard') {
     switch(e.key) { case ' ': case 'Enter': case 'ArrowRight': case 'ArrowDown': case 'PageDown': e.preventDefault(); cueNext(); break; case 'ArrowLeft': case 'ArrowUp': case 'PageUp': e.preventDefault(); cuePrev(); break; case 'Escape': case 'r': case 'R': case 'Backspace': e.preventDefault(); state.cueIndex = 0; showCueCard(); break; case 'f': case 'F': toggleFullscreen(); break; }
