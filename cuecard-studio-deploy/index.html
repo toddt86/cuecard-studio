@@ -74,8 +74,8 @@ html, body {
 /* Auth button */
 .auth-area {
   position: absolute;
-  top: 20px;
-  right: 24px;
+  top: calc(env(safe-area-inset-top, 0px) + 20px);
+  right: calc(env(safe-area-inset-right, 0px) + 24px);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -84,8 +84,8 @@ html, body {
 /* Remote selector */
 .remote-area {
   position: absolute;
-  top: 20px;
-  left: 24px;
+  top: calc(env(safe-area-inset-top, 0px) + 20px);
+  left: calc(env(safe-area-inset-left, 0px) + 24px);
   display: none;
   z-index: 50;
 }
@@ -178,7 +178,7 @@ html, body {
 }
 
 @media (max-width: 700px) {
-  .remote-area { top: 16px; left: 16px; }
+  .remote-area { top: calc(env(safe-area-inset-top, 0px) + 16px); left: calc(env(safe-area-inset-left, 0px) + 16px); }
   .remote-panel { min-width: 260px; }
 }
 
@@ -1002,7 +1002,7 @@ html, body {
   .setup-body { padding: 16px; gap: 14px; }
   .setup-footer { padding: 10px 16px 16px; }
   .logo-img { width: 340px; max-width: 85%; }
-  .auth-area { top: 16px; right: 16px; }
+  .auth-area { top: calc(env(safe-area-inset-top, 0px) + 16px); right: calc(env(safe-area-inset-right, 0px) + 16px); }
   .user-name { display: none; }
   .mode-btn { padding: 10px 12px; font-size: 13px; }
   .mode-btn .mode-icon { font-size: 18px; }
@@ -1308,6 +1308,10 @@ html, body {
           <span class="mode-icon">&#9641;</span>Cue Card<span class="pro-lock">&#128274;</span>
           <span class="mode-desc">One sentence at a time</span>
         </button>
+        <button class="mode-btn" data-mode="voice" onclick="setMode('voice')">
+          <span class="mode-icon">&#127908;</span>CueCard Voice<span class="pro-lock">&#128274;</span>
+          <span class="mode-desc">Voice-advanced cards</span>
+        </button>
       </div>
     </div>
 
@@ -1327,6 +1331,11 @@ html, body {
         <span class="slider-label">Margins</span>
         <input type="range" id="marginSlider" min="2" max="25" value="17" oninput="updateSliderDisplay()">
         <span class="slider-value" id="marginValue">10%</span>
+      </div>
+      <div class="slider-control" id="chunkSizeControl" style="display:none;">
+        <span class="slider-label">Words/Card</span>
+        <input type="range" id="chunkSlider" min="6" max="20" value="15" oninput="updateChunkSize()">
+        <span class="slider-value" id="chunkValue">15</span>
       </div>
     </div>
 
@@ -2215,16 +2224,22 @@ const state = {
   cueCards: [], cueIndex: 0, inLiveMode: false,
   remoteType: 'padcaster',
   _ambitfulLastSpeedAt: 0, _ambitfulLastJumpAt: 0, _ambitfulLastFaceAt: 0,
-  _ambitfulLastArrowDownAt: 0, _ambitfulLastResetAt: 0
+  _ambitfulLastArrowDownAt: 0, _ambitfulLastResetAt: 0,
+  chunkSize: 15, voiceRecognition: null, voiceListening: false,
+  _voiceLastAdvanceAt: 0, _voiceRestartTimer: null
 };
 
 function setMode(mode) {
   state.mode = mode;
   document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
   const isCue = mode === 'cuecard';
-  document.getElementById('speedControl').style.display = isCue ? 'none' : 'flex';
-  document.getElementById('marginControl').style.display = isCue ? 'none' : 'flex';
-  document.getElementById('focusToggle').style.display = isCue ? 'none' : '';
+  const isVoice = mode === 'voice';
+  const hideForCard = isCue || isVoice;
+  document.getElementById('speedControl').style.display = hideForCard ? 'none' : 'flex';
+  document.getElementById('marginControl').style.display = hideForCard ? 'none' : 'flex';
+  document.getElementById('focusToggle').style.display = hideForCard ? 'none' : '';
+  var chunkControl = document.getElementById('chunkSizeControl');
+  if (chunkControl) chunkControl.style.display = isVoice ? 'flex' : 'none';
   saveSettings();
 }
 
@@ -2235,6 +2250,12 @@ function updateSliderDisplay() {
   document.getElementById('speedValue').textContent = state.speed;
   document.getElementById('fontValue').textContent = state.fontSize;
   document.getElementById('marginValue').textContent = state.margin + '%';
+  saveSettings();
+}
+
+function updateChunkSize() {
+  state.chunkSize = parseInt(document.getElementById('chunkSlider').value);
+  document.getElementById('chunkValue').textContent = state.chunkSize;
   saveSettings();
 }
 
@@ -2252,7 +2273,7 @@ function saveSettings() {
   const settings = {
     mode: state.mode, speed: state.speed, fontSize: state.fontSize, margin: state.margin,
     mirror: state.mirror, focusZone: state.focusZone, countdownEnabled: state.countdownEnabled,
-    remoteType: state.remoteType
+    remoteType: state.remoteType, chunkSize: state.chunkSize
   };
   db.collection('users').doc(currentUser.uid).collection('settings').doc('prefs').set(settings, { merge: true })
     .catch(function(e) { console.log('Settings save error:', e); });
@@ -2292,6 +2313,13 @@ function loadSettings() {
         var sel = document.getElementById('remoteSelect');
         if (sel) sel.value = s.remoteType;
         renderRemoteLegend();
+      }
+      if (s.chunkSize !== undefined) {
+        state.chunkSize = s.chunkSize;
+        var cs = document.getElementById('chunkSlider');
+        var cv = document.getElementById('chunkValue');
+        if (cs) cs.value = s.chunkSize;
+        if (cv) cv.textContent = s.chunkSize;
       }
     }).catch(function(e) { console.log('Settings load error:', e); });
 }
@@ -2395,6 +2423,16 @@ async function runAiAction(action) {
 
 function splitIntoCueCards(text) { return text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 0); }
 
+function splitIntoWordChunks(text, n) {
+  // Normalize whitespace, split into words, then chunk into groups of n.
+  var words = text.replace(/\s+/g, ' ').trim().split(' ').filter(function(w) { return w.length > 0; });
+  var chunks = [];
+  for (var i = 0; i < words.length; i += n) {
+    chunks.push(words.slice(i, i + n).join(' '));
+  }
+  return chunks;
+}
+
 function getCueCardFontSize(text) {
   const len = text.length;
   if (len < 40) return Math.min(72, state.fontSize + 20);
@@ -2429,7 +2467,9 @@ function startPrompter() {
   document.body.style.overflow = 'auto';
   window.scrollTo(0, 1);
   setTimeout(() => { document.body.style.height = '100%'; document.body.style.overflow = 'hidden'; window.scrollTo(0, 0); }, 300);
-  if (state.mode === 'cuecard') startCueCardMode(cleaned); else startScrollMode(cleaned);
+  if (state.mode === 'voice') startVoiceMode(cleaned);
+  else if (state.mode === 'cuecard') startCueCardMode(cleaned);
+  else startScrollMode(cleaned);
 }
 
 function startScrollMode(cleaned) {
@@ -2490,6 +2530,168 @@ function cuePrev() {
   setTimeout(() => { state.cueIndex--; showCueCard(); }, 180);
 }
 
+// ════════════════ CUECARD VOICE MODE ════════════════
+function startVoiceMode(cleaned) {
+  document.getElementById('prompterContent').style.display = 'none';
+  document.getElementById('cueCardScreen').classList.add('active');
+  document.getElementById('speedHUD').style.display = 'none';
+  document.getElementById('resetBtn').style.display = 'none';
+  state.cueCards = splitIntoWordChunks(cleaned, state.chunkSize);
+  state.cueIndex = 0;
+  document.getElementById('hudMode').textContent = 'VOICE';
+  document.getElementById('cueCardText').classList.toggle('mirrored', state.mirror);
+  document.getElementById('prompterHUD').classList.toggle('mirrored', state.mirror);
+  document.getElementById('speedFlash').classList.toggle('mirrored', state.mirror);
+  document.getElementById('elapsedTime').classList.toggle('mirrored', state.mirror);
+  document.getElementById('cueCounter').classList.toggle('mirrored', state.mirror);
+  const go = () => {
+    state.playing = false;
+    updatePlayPauseBtn();
+    showCueCard();
+    startVoiceRecognition();
+  };
+  if (state.countdownEnabled) runCountdown(go); else go();
+}
+
+// Normalize a word for fuzzy comparison: lowercase, strip punctuation
+function normalizeWord(w) {
+  return (w || '').toLowerCase().replace(/[^a-z0-9']/g, '');
+}
+
+// Levenshtein distance for fuzzy matching
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  var matrix = [];
+  for (var i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (var j = 0; j <= a.length; j++) matrix[0][j] = j;
+  for (i = 1; i <= b.length; i++) {
+    for (j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+// Check if two words match with fuzzy tolerance
+function wordsMatch(heard, target) {
+  var h = normalizeWord(heard);
+  var t = normalizeWord(target);
+  if (!h || !t) return false;
+  if (h === t) return true;
+  // Allow "contains" match for short targets (e.g., "the" in "they")
+  if (t.length >= 4 && h.indexOf(t) !== -1) return true;
+  if (h.length >= 4 && t.indexOf(h) !== -1) return true;
+  // Levenshtein tolerance: 1 edit for 4-6 char words, 2 edits for 7+
+  var dist = levenshtein(h, t);
+  if (t.length <= 3) return dist === 0;
+  if (t.length <= 6) return dist <= 1;
+  return dist <= 2;
+}
+
+function startVoiceRecognition() {
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    alert('Sorry, your browser does not support speech recognition. Try Chrome or Safari.');
+    return;
+  }
+  try {
+    var rec = new SR();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = 'en-US';
+    rec.maxAlternatives = 1;
+
+    rec.onresult = function(event) {
+      if (!state.voiceListening) return;
+      // Grab the latest result (interim or final)
+      var last = event.results[event.results.length - 1];
+      var transcript = last[0].transcript.trim();
+      if (!transcript) return;
+      // Get the last few words heard
+      var heardWords = transcript.split(/\s+/);
+      var recent = heardWords.slice(-5); // last 5 words for safety
+
+      // Get the trigger word: 4th from last of current chunk
+      var currentCard = state.cueCards[state.cueIndex];
+      if (!currentCard) return;
+      var cardWords = currentCard.split(/\s+/);
+      if (cardWords.length < 4) {
+        // For short final chunks, trigger on the last word instead
+        var triggerWord = cardWords[cardWords.length - 1];
+      } else {
+        var triggerWord = cardWords[cardWords.length - 4];
+      }
+
+      // Check if any of the recent heard words match the trigger
+      for (var i = 0; i < recent.length; i++) {
+        if (wordsMatch(recent[i], triggerWord)) {
+          // Debounce: avoid firing multiple times for same chunk
+          if (Date.now() - state._voiceLastAdvanceAt < 800) return;
+          state._voiceLastAdvanceAt = Date.now();
+          if (state.cueIndex < state.cueCards.length - 1) {
+            cueNext();
+          }
+          return;
+        }
+      }
+    };
+
+    rec.onerror = function(e) {
+      console.log('Voice recognition error:', e.error);
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        alert('Microphone access is required for CueCard Voice mode. Please enable it in your browser settings.');
+        state.voiceListening = false;
+        return;
+      }
+      // For other errors (no-speech, network, aborted), let onend restart it
+    };
+
+    rec.onend = function() {
+      // Auto-restart if still in voice mode (iOS Safari stops after silence)
+      if (state.voiceListening && state.mode === 'voice') {
+        if (state._voiceRestartTimer) clearTimeout(state._voiceRestartTimer);
+        state._voiceRestartTimer = setTimeout(function() {
+          try {
+            if (state.voiceListening) rec.start();
+          } catch (err) {
+            console.log('Recognition restart failed:', err);
+          }
+        }, 200);
+      }
+    };
+
+    state.voiceRecognition = rec;
+    state.voiceListening = true;
+    rec.start();
+  } catch (err) {
+    console.log('Failed to start voice recognition:', err);
+    alert('Could not start voice recognition: ' + err.message);
+  }
+}
+
+function stopVoiceRecognition() {
+  state.voiceListening = false;
+  if (state._voiceRestartTimer) {
+    clearTimeout(state._voiceRestartTimer);
+    state._voiceRestartTimer = null;
+  }
+  if (state.voiceRecognition) {
+    try { state.voiceRecognition.stop(); } catch (e) {}
+    try { state.voiceRecognition.abort(); } catch (e) {}
+    state.voiceRecognition = null;
+  }
+}
+
 function runCountdown(cb) {
   const overlay = document.getElementById('countdown'); const numEl = document.getElementById('countdownNumber');
   overlay.classList.add('active'); let count = 3; numEl.textContent = count;
@@ -2539,6 +2741,7 @@ function toggleFullscreen() {
 
 function exitPrompter() {
   state.playing = false; cancelAnimationFrame(state.animFrame); stopElapsedTimer(); releaseWakeLock();
+  stopVoiceRecognition();
   if (document.fullscreenElement || document.webkitFullscreenElement) { if (document.exitFullscreen) document.exitFullscreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); }
   document.getElementById('prompterScreen').classList.remove('active'); document.getElementById('cueCardScreen').classList.remove('active');
   if (state.inLiveMode) {
@@ -2662,7 +2865,7 @@ function handleAmbitfulKey(e) {
     e.preventDefault(); e.stopPropagation();
     if (now - state._ambitfulLastJumpAt < JUMP_THROTTLE_MS) return true;
     state._ambitfulLastJumpAt = now;
-    if (state.mode === 'cuecard') { cueNext(); }
+    if (state.mode === 'cuecard' || state.mode === 'voice') { cueNext(); }
     else {
       state.scrollPos = Math.min(state.totalHeight, state.scrollPos + SCROLL_JUMP_PX);
       applyScroll(); updateProgress();
@@ -2676,7 +2879,7 @@ function handleAmbitfulKey(e) {
     e.preventDefault(); e.stopPropagation();
     if (now - state._ambitfulLastSpeedAt < SPEED_THROTTLE_MS) return true;
     state._ambitfulLastSpeedAt = now;
-    if (state.mode === 'cuecard') {
+    if (state.mode === 'cuecard' || state.mode === 'voice') {
       code === 'ArrowLeft' ? cuePrev() : cueNext();
     } else {
       adjustSpeed(code === 'ArrowLeft' ? -1 : 1);
@@ -2692,7 +2895,7 @@ function handleAmbitfulKey(e) {
     e.preventDefault(); e.stopPropagation();
     if (now - state._ambitfulLastFaceAt < PLAYPAUSE_THROTTLE_MS) return true;
     state._ambitfulLastFaceAt = now;
-    if (state.mode === 'cuecard') { cueNext(); }
+    if (state.mode === 'cuecard' || state.mode === 'voice') { cueNext(); }
     else { togglePlayPause(); }
     showHUD();
     return true;
@@ -2704,8 +2907,10 @@ function handleAmbitfulKey(e) {
 // Keyboard / Remote
 document.addEventListener('keydown', function(e) {
   if (handleAmbitfulKey(e)) return;
-  if (!document.getElementById('prompterScreen').classList.contains('active')) return;
-  if (state.mode === 'cuecard') {
+  var promptActive = document.getElementById('prompterScreen').classList.contains('active');
+  var cueActive = document.getElementById('cueCardScreen').classList.contains('active');
+  if (!promptActive && !cueActive) return;
+  if (state.mode === 'cuecard' || state.mode === 'voice') {
     switch(e.key) { case ' ': case 'Enter': case 'ArrowRight': case 'ArrowDown': case 'PageDown': e.preventDefault(); cueNext(); break; case 'ArrowLeft': case 'ArrowUp': case 'PageUp': e.preventDefault(); cuePrev(); break; case 'Escape': case 'r': case 'R': case 'Backspace': e.preventDefault(); state.cueIndex = 0; showCueCard(); break; case 'f': case 'F': toggleFullscreen(); break; }
     showHUD(); return;
   }
@@ -2714,9 +2919,12 @@ document.addEventListener('keydown', function(e) {
 });
 
 document.addEventListener('keydown', function(e) {
-  if (!document.getElementById('prompterScreen').classList.contains('active')) return;
-  if (e.code === 'AudioVolumeUp') { e.preventDefault(); state.mode === 'cuecard' ? cueNext() : adjustSpeed(1); }
-  if (e.code === 'AudioVolumeDown') { e.preventDefault(); state.mode === 'cuecard' ? cuePrev() : adjustSpeed(-1); }
+  var promptActive = document.getElementById('prompterScreen').classList.contains('active');
+  var cueActive = document.getElementById('cueCardScreen').classList.contains('active');
+  if (!promptActive && !cueActive) return;
+  var isCard = (state.mode === 'cuecard' || state.mode === 'voice');
+  if (e.code === 'AudioVolumeUp') { e.preventDefault(); isCard ? cueNext() : adjustSpeed(1); }
+  if (e.code === 'AudioVolumeDown') { e.preventDefault(); isCard ? cuePrev() : adjustSpeed(-1); }
 });
 
 // Touch (scroll modes)
@@ -2735,7 +2943,7 @@ document.getElementById('cueCardScreen').addEventListener('touchend', function(e
 function showHUD() {
   const hud = document.getElementById('prompterHUD'); hud.classList.remove('hidden'); state.hudVisible = true;
   clearTimeout(state.hudTimeout);
-  if (state.playing && state.mode !== 'cuecard') { state.hudTimeout = setTimeout(() => { hud.classList.add('hidden'); state.hudVisible = false; }, 4000); }
+  if (state.playing && state.mode !== 'cuecard' && state.mode !== 'voice') { state.hudTimeout = setTimeout(() => { hud.classList.add('hidden'); state.hudVisible = false; }, 4000); }
 }
 document.getElementById('prompterContent').addEventListener('mousemove', showHUD);
 
