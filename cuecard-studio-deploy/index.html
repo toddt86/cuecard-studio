@@ -2576,7 +2576,6 @@ const REMOTE_PROFILES = {
       { key: 'OK (top)', action: 'Play / Pause' },
       { key: 'Joystick L/R', action: 'Speed down / up' },
       { key: 'Joystick U/D', action: 'Scroll back / forward' },
-      { key: 'X button', action: 'Reset to top' },
       { key: 'Mode switch', action: 'Set to GAME' }
     ]
   }
@@ -2657,28 +2656,17 @@ function handleAmbitfulKey(e) {
     return true;
   }
 
-  // KeyX is sent by BOTH joystick-down (paired with ArrowDown) AND the X face button (alone).
-  // If ArrowDown fired within the last 80ms, this is joystick-down → scroll forward.
-  // Otherwise it's a real X press → reset to top.
+  // KeyX is sent by joystick-down (we don't try to support the X face button as
+  // a separate action because it sends cycling keys that conflict with the OK button).
   if (code === 'KeyX') {
     e.preventDefault(); e.stopPropagation();
-    var isJoystickDown = (now - state._ambitfulLastArrowDownAt) < 80;
-    if (isJoystickDown) {
-      if (now - state._ambitfulLastJumpAt < JUMP_THROTTLE_MS) return true;
-      state._ambitfulLastJumpAt = now;
-      if (state.mode === 'cuecard') { cueNext(); }
-      else {
-        state.scrollPos = Math.min(state.totalHeight, state.scrollPos + SCROLL_JUMP_PX);
-        applyScroll(); updateProgress();
-      }
-      showHUD();
-      return true;
+    if (now - state._ambitfulLastJumpAt < JUMP_THROTTLE_MS) return true;
+    state._ambitfulLastJumpAt = now;
+    if (state.mode === 'cuecard') { cueNext(); }
+    else {
+      state.scrollPos = Math.min(state.totalHeight, state.scrollPos + SCROLL_JUMP_PX);
+      applyScroll(); updateProgress();
     }
-    // Real X face button → reset to top (heavily throttled to avoid accidental rapid fires)
-    if (now - state._ambitfulLastResetAt < 600) return true;
-    state._ambitfulLastResetAt = now;
-    if (state.mode === 'cuecard') { state.cueIndex = 0; showCueCard(); }
-    else { resetScroll(); }
     showHUD();
     return true;
   }
