@@ -1337,6 +1337,11 @@ html, body {
         <input type="range" id="chunkSlider" min="6" max="20" value="15" oninput="updateChunkSize()">
         <span class="slider-value" id="chunkValue">15</span>
       </div>
+      <div class="slider-control" id="triggerOffsetControl" style="display:none;">
+        <span class="slider-label">Trigger Word</span>
+        <input type="range" id="triggerSlider" min="4" max="7" value="4" oninput="updateTriggerOffset()">
+        <span class="slider-value" id="triggerValue">4th from end</span>
+      </div>
     </div>
 
     <div class="control-group">
@@ -2225,7 +2230,7 @@ const state = {
   remoteType: 'padcaster',
   _ambitfulLastSpeedAt: 0, _ambitfulLastJumpAt: 0, _ambitfulLastFaceAt: 0,
   _ambitfulLastArrowDownAt: 0, _ambitfulLastResetAt: 0,
-  chunkSize: 15, voiceRecognition: null, voiceListening: false,
+  chunkSize: 15, triggerOffset: 4, voiceRecognition: null, voiceListening: false,
   _voiceLastAdvanceAt: 0, _voiceRestartTimer: null
 };
 
@@ -2240,6 +2245,8 @@ function setMode(mode) {
   document.getElementById('focusToggle').style.display = hideForCard ? 'none' : '';
   var chunkControl = document.getElementById('chunkSizeControl');
   if (chunkControl) chunkControl.style.display = isVoice ? 'flex' : 'none';
+  var triggerControl = document.getElementById('triggerOffsetControl');
+  if (triggerControl) triggerControl.style.display = isVoice ? 'flex' : 'none';
   saveSettings();
 }
 
@@ -2259,6 +2266,17 @@ function updateChunkSize() {
   saveSettings();
 }
 
+function ordinalLabel(n) {
+  var suffix = (n === 1) ? 'st' : (n === 2) ? 'nd' : (n === 3) ? 'rd' : 'th';
+  return n + suffix + ' from end';
+}
+
+function updateTriggerOffset() {
+  state.triggerOffset = parseInt(document.getElementById('triggerSlider').value);
+  document.getElementById('triggerValue').textContent = ordinalLabel(state.triggerOffset);
+  saveSettings();
+}
+
 function toggleOption(btn) {
   btn.classList.toggle('active');
   if (btn.id === 'mirrorToggle') state.mirror = btn.classList.contains('active');
@@ -2273,7 +2291,7 @@ function saveSettings() {
   const settings = {
     mode: state.mode, speed: state.speed, fontSize: state.fontSize, margin: state.margin,
     mirror: state.mirror, focusZone: state.focusZone, countdownEnabled: state.countdownEnabled,
-    remoteType: state.remoteType, chunkSize: state.chunkSize
+    remoteType: state.remoteType, chunkSize: state.chunkSize, triggerOffset: state.triggerOffset
   };
   db.collection('users').doc(currentUser.uid).collection('settings').doc('prefs').set(settings, { merge: true })
     .catch(function(e) { console.log('Settings save error:', e); });
@@ -2320,6 +2338,13 @@ function loadSettings() {
         var cv = document.getElementById('chunkValue');
         if (cs) cs.value = s.chunkSize;
         if (cv) cv.textContent = s.chunkSize;
+      }
+      if (s.triggerOffset !== undefined) {
+        state.triggerOffset = s.triggerOffset;
+        var ts = document.getElementById('triggerSlider');
+        var tv = document.getElementById('triggerValue');
+        if (ts) ts.value = s.triggerOffset;
+        if (tv) tv.textContent = ordinalLabel(s.triggerOffset);
       }
     }).catch(function(e) { console.log('Settings load error:', e); });
 }
@@ -2619,17 +2644,19 @@ function startVoiceRecognition() {
       if (!transcript) return;
       // Get the last few words heard
       var heardWords = transcript.split(/\s+/);
-      var recent = heardWords.slice(-5); // last 5 words for safety
+      var recent = heardWords.slice(-7); // last 7 words for safety with higher offsets
 
-      // Get the trigger word: 4th from last of current chunk
+      // Get the trigger word: Nth from last of current chunk (user-configurable)
       var currentCard = state.cueCards[state.cueIndex];
       if (!currentCard) return;
       var cardWords = currentCard.split(/\s+/);
-      if (cardWords.length < 4) {
+      var offset = state.triggerOffset || 4;
+      var triggerWord;
+      if (cardWords.length < offset) {
         // For short final chunks, trigger on the last word instead
-        var triggerWord = cardWords[cardWords.length - 1];
+        triggerWord = cardWords[cardWords.length - 1];
       } else {
-        var triggerWord = cardWords[cardWords.length - 4];
+        triggerWord = cardWords[cardWords.length - offset];
       }
 
       // Check if any of the recent heard words match the trigger
