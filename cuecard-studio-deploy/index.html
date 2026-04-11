@@ -1444,6 +1444,13 @@ html, body {
   <div id="speedFlash"></div>
   <div id="countdown"><div id="countdownNumber">3</div><div id="countdownLabel">Get Ready</div></div>
 
+  <div id="remoteDiag" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.92);border:2px solid #cc2828;border-radius:10px;padding:20px 24px;z-index:9999;color:#fff;font-family:monospace;font-size:14px;min-width:320px;max-width:90vw;pointer-events:none;">
+    <div style="color:#cc2828;font-weight:700;margin-bottom:10px;text-align:center;font-size:13px;letter-spacing:1px;">REMOTE DIAGNOSTICS</div>
+    <div style="font-size:11px;color:#888;text-align:center;margin-bottom:12px;">Press buttons on your remote</div>
+    <div id="remoteDiagLog" style="font-size:13px;line-height:1.6;min-height:120px;"></div>
+    <div style="font-size:10px;color:#666;text-align:center;margin-top:10px;">Last 6 events shown</div>
+  </div>
+
   <div id="prompterContent">
     <div class="focus-zone" id="focusZone"></div>
     <div id="textScroller"><div class="prompter-text" id="prompterText"></div></div>
@@ -2673,6 +2680,17 @@ function handleAmbitfulKey(e) {
 
   return false;
 }
+
+// ════════ TEMPORARY: Remote Diagnostics ════════
+window._remoteDiagLog = [];
+document.addEventListener('keydown', function(e) {
+  if (!document.getElementById('prompterScreen').classList.contains('active')) return;
+  var entry = 'key: ' + JSON.stringify(e.key) + '<br>code: ' + JSON.stringify(e.code) + '<br>keyCode: ' + e.keyCode;
+  window._remoteDiagLog.unshift('<div style="border-bottom:1px solid #333;padding-bottom:6px;margin-bottom:6px;">' + entry + '</div>');
+  if (window._remoteDiagLog.length > 6) window._remoteDiagLog.length = 6;
+  var el = document.getElementById('remoteDiagLog');
+  if (el) el.innerHTML = window._remoteDiagLog.join('');
+}, true); // capture phase, runs before everything else
 
 // Keyboard / Remote
 document.addEventListener('keydown', function(e) {
