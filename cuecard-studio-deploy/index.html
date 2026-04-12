@@ -2431,6 +2431,9 @@ async function runAiAction(action) {
     pushAiUndo(script);
     ta.value = data.result;
     ta.dispatchEvent(new Event('input'));
+    if (data.aiUsed && data.aiLimit) {
+      showToast('AI uses this month: ' + data.aiUsed + ' / ' + data.aiLimit);
+    }
   } catch (err) {
     console.error('AI action error:', err);
     alert('Could not process script: ' + (err.message || 'unknown error'));
