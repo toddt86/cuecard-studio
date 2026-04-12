@@ -947,6 +947,8 @@ html, body {
 #cueCardText.mirrored { transform: scaleX(-1); }
 #cueCardText.fade-out { opacity: 0; transform: translateY(-16px); }
 #cueCardText.mirrored.fade-out { opacity: 0; transform: scaleX(-1) translateY(-16px); }
+@keyframes voiceTriggerFlash { 0% { box-shadow: inset 0 0 0 3px rgba(52,211,153,0.9), 0 0 30px rgba(52,211,153,0.3); } 100% { box-shadow: inset 0 0 0 3px rgba(52,211,153,0), 0 0 30px rgba(52,211,153,0); } }
+#cueCardScreen.voice-trigger-flash { animation: voiceTriggerFlash 0.45s ease-out; }
 .cue-counter { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); font-family: var(--font-mono); font-size: 13px; color: var(--text-secondary); background: rgba(0,0,0,0.6); padding: 4px 14px; border-radius: 6px; z-index: 20; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 .cue-counter.mirrored { transform: translateX(-50%) scaleX(-1); }
 .cue-nav { position: absolute; bottom: 90px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 20; }
@@ -2665,6 +2667,11 @@ function startVoiceRecognition() {
           // Debounce: avoid firing multiple times for same chunk
           if (Date.now() - state._voiceLastAdvanceAt < 800) return;
           state._voiceLastAdvanceAt = Date.now();
+          // Visual flash to confirm trigger fired
+          var screen = document.getElementById('cueCardScreen');
+          screen.classList.remove('voice-trigger-flash');
+          void screen.offsetWidth; // force reflow so animation replays
+          screen.classList.add('voice-trigger-flash');
           if (state.cueIndex < state.cueCards.length - 1) {
             cueNext();
           }
