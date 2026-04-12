@@ -2233,7 +2233,8 @@ const state = {
   _ambitfulLastSpeedAt: 0, _ambitfulLastJumpAt: 0, _ambitfulLastFaceAt: 0,
   _ambitfulLastArrowDownAt: 0, _ambitfulLastResetAt: 0,
   chunkSize: 15, triggerOffset: 4, voiceRecognition: null, voiceListening: false,
-  _voiceLastAdvanceAt: 0, _voiceRestartTimer: null
+  _voiceLastAdvanceAt: 0, _voiceRestartTimer: null,
+  _voiceTotalWordsAtAdvance: 0, _voiceTotalWords: 0
 };
 
 function setMode(mode) {
@@ -2648,6 +2649,15 @@ function startVoiceRecognition() {
       var heardWords = transcript.split(/\s+/);
       var recent = heardWords.slice(-7); // last 7 words for safety with higher offsets
 
+      // Track total words heard across all results for new-speech gating
+      state._voiceTotalWords += heardWords.length;
+
+      // Require at least 3 new words spoken since last advance before trigger can fire.
+      // This prevents: (a) same trigger word on consecutive cards causing double-skip,
+      // and (b) trigger word appearing early in the same card firing prematurely.
+      var newWordsSinceAdvance = state._voiceTotalWords - state._voiceTotalWordsAtAdvance;
+      if (newWordsSinceAdvance < 3) return;
+
       // Get the trigger word: Nth from last of current chunk (user-configurable)
       var currentCard = state.cueCards[state.cueIndex];
       if (!currentCard) return;
@@ -2667,6 +2677,7 @@ function startVoiceRecognition() {
           // Debounce: avoid firing multiple times for same chunk
           if (Date.now() - state._voiceLastAdvanceAt < 800) return;
           state._voiceLastAdvanceAt = Date.now();
+          state._voiceTotalWordsAtAdvance = state._voiceTotalWords;
           // Visual flash to confirm trigger fired
           var screen = document.getElementById('cueCardScreen');
           screen.classList.remove('voice-trigger-flash');
