@@ -883,6 +883,10 @@ html, body {
 }
 
 .slider-control .slider-value { font-family: var(--font-mono); font-size: 14px; color: var(--accent); min-width: 36px; text-align: right; }
+.color-swatches { display: flex; gap: 8px; align-items: center; padding: 4px 0; }
+.color-swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.15); cursor: pointer; transition: all 0.15s; }
+.color-swatch:hover { transform: scale(1.15); }
+.color-swatch.active { border-color: var(--accent); box-shadow: 0 0 8px var(--accent-glow); }
 
 .toggle-row { display: flex; gap: 10px; flex-wrap: wrap; }
 
@@ -926,7 +930,7 @@ html, body {
 
 .prompter-text {
   font-size: var(--prompter-font-size, 42px); line-height: var(--prompter-line-height, 1.5);
-  color: #ffffff; font-weight: 500; font-family: var(--font-ui); text-align: left;
+  color: var(--prompter-font-color, #ffffff); font-weight: 500; font-family: var(--font-ui); text-align: left;
   padding-top: 45vh; padding-bottom: 55vh; white-space: pre-wrap;
 }
 
@@ -943,7 +947,7 @@ html, body {
 /* Cue Card */
 #cueCardScreen { display: none; flex: 1; position: relative; flex-direction: column; align-items: center; justify-content: center; padding: 40px 32px; overflow: hidden; }
 #cueCardScreen.active { display: flex; }
-#cueCardText { font-family: var(--font-ui); font-weight: 600; color: #ffffff; text-align: center; line-height: 1.35; max-width: 92%; transition: opacity 0.2s ease, transform 0.2s ease; }
+#cueCardText { font-family: var(--font-ui); font-weight: 600; color: var(--prompter-font-color, #ffffff); text-align: center; line-height: 1.35; max-width: 92%; transition: opacity 0.2s ease, transform 0.2s ease; }
 #cueCardText.mirrored { transform: scaleX(-1); }
 #cueCardText.fade-out { opacity: 0; transform: translateY(-16px); }
 #cueCardText.mirrored.fade-out { opacity: 0; transform: scaleX(-1) translateY(-16px); }
@@ -1328,6 +1332,17 @@ html, body {
         <span class="slider-label">Font Size</span>
         <input type="range" id="fontSlider" min="24" max="120" value="55" oninput="updateSliderDisplay()">
         <span class="slider-value" id="fontValue">42</span>
+      </div>
+      <div class="slider-control">
+        <span class="slider-label">Font Color</span>
+        <div class="color-swatches" id="fontColorSwatches">
+          <div class="color-swatch active" data-color="#ffffff" style="background:#ffffff;" onclick="setFontColor(this)"></div>
+          <div class="color-swatch" data-color="#FFE633" style="background:#FFE633;" onclick="setFontColor(this)"></div>
+          <div class="color-swatch" data-color="#33FF57" style="background:#33FF57;" onclick="setFontColor(this)"></div>
+          <div class="color-swatch" data-color="#33CFFF" style="background:#33CFFF;" onclick="setFontColor(this)"></div>
+          <div class="color-swatch" data-color="#FF6B6B" style="background:#FF6B6B;" onclick="setFontColor(this)"></div>
+          <div class="color-swatch" data-color="#FFB347" style="background:#FFB347;" onclick="setFontColor(this)"></div>
+        </div>
       </div>
       <div class="slider-control" id="marginControl">
         <span class="slider-label">Margins</span>
@@ -2212,7 +2227,7 @@ function exitLiveMode() {
 
 // ════════════════ PROMPTER STATE ════════════════
 const state = {
-  mode: 'auto', speed: 7, fontSize: 55, margin: 17,
+  mode: 'auto', speed: 7, fontSize: 55, margin: 17, fontColor: '#ffffff',
   mirror: true, focusZone: true, countdownEnabled: false,
   playing: false, scrollPos: 0, totalHeight: 0, viewHeight: 0,
   wakeLock: null, animFrame: null, lastTime: null,
@@ -2253,6 +2268,14 @@ function updateSliderDisplay() {
   saveSettings();
 }
 
+function setFontColor(el) {
+  state.fontColor = el.dataset.color;
+  document.documentElement.style.setProperty('--prompter-font-color', state.fontColor);
+  document.querySelectorAll('.color-swatch').forEach(function(s) { s.classList.remove('active'); });
+  el.classList.add('active');
+  saveSettings();
+}
+
 function updateChunkSize() {
   state.chunkSize = parseInt(document.getElementById('chunkSlider').value);
   document.getElementById('chunkValue').textContent = state.chunkSize;
@@ -2283,8 +2306,9 @@ function saveSettings() {
   if (!currentUser) return;
   const settings = {
     mode: state.mode, speed: state.speed, fontSize: state.fontSize, margin: state.margin,
-    mirror: state.mirror, focusZone: state.focusZone, countdownEnabled: state.countdownEnabled,
-    remoteType: state.remoteType, chunkSize: state.chunkSize, triggerOffset: state.triggerOffset
+    fontColor: state.fontColor, mirror: state.mirror, focusZone: state.focusZone,
+    countdownEnabled: state.countdownEnabled, remoteType: state.remoteType,
+    chunkSize: state.chunkSize, triggerOffset: state.triggerOffset
   };
   db.collection('users').doc(currentUser.uid).collection('settings').doc('prefs').set(settings, { merge: true })
     .catch(function(e) { console.log('Settings save error:', e); });
@@ -2304,6 +2328,13 @@ function loadSettings() {
       if (s.speed !== undefined) { document.getElementById('speedSlider').value = s.speed; }
       if (s.fontSize !== undefined) { document.getElementById('fontSlider').value = s.fontSize; }
       if (s.margin !== undefined) { document.getElementById('marginSlider').value = s.margin; }
+      if (s.fontColor) {
+        state.fontColor = s.fontColor;
+        document.documentElement.style.setProperty('--prompter-font-color', s.fontColor);
+        document.querySelectorAll('.color-swatch').forEach(function(sw) {
+          sw.classList.toggle('active', sw.dataset.color === s.fontColor);
+        });
+      }
       updateSliderDisplay();
 
       // Apply toggles
