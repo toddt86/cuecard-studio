@@ -1307,11 +1307,11 @@ html, body {
           <span class="mode-desc">Constant scroll speed</span>
         </button>
         <button class="mode-btn" data-mode="cuecard" onclick="setMode('cuecard')">
-          <span class="mode-icon">&#9641;</span>Cue Card<span class="pro-lock">&#128274;</span>
+          <span class="mode-icon">&#9641;</span>Cue Card
           <span class="mode-desc">One sentence at a time</span>
         </button>
         <button class="mode-btn" data-mode="voice" onclick="setMode('voice')">
-          <span class="mode-icon">&#127908;</span>CueCard Voice<span class="pro-lock">&#128274;</span>
+          <span class="mode-icon">&#127908;</span>CueCard Voice
           <span class="mode-desc">Voice-advanced cards</span>
         </button>
       </div>
@@ -1584,7 +1584,6 @@ function applyProGating() {
   var saveBtn = document.getElementById('saveScriptBtn');
   var sendBtn = document.getElementById('sendToPrompterBtn');
   var startBtn = document.getElementById('startPrompterBtn');
-  var cuecardModeBtn = document.querySelector('[data-mode="cuecard"]');
   var proBadge = document.getElementById('proBadge');
 
   if (currentUser && isPro) {
@@ -1594,36 +1593,24 @@ function applyProGating() {
     saveBtn.onclick = openSaveModal;
     sendBtn.onclick = sendToPrompter;
     if (startBtn) startBtn.onclick = startPrompter;
-    if (cuecardModeBtn) cuecardModeBtn.onclick = function() { setMode('cuecard'); };
     if (proBadge) proBadge.style.display = '';
     document.getElementById('manageSubBtn').style.display = '';
-    document.querySelectorAll('.pro-lock').forEach(function(el) { el.style.display = 'none'; });
   } else if (currentUser) {
-    // Signed in but not pro - lock EVERYTHING
+    // Signed in but not pro - lock saving, live mode, etc.
     goLiveBtn.style.display = '';
     goLiveBtn.onclick = showUpgradeModal;
     saveBtn.onclick = showUpgradeModal;
     sendBtn.onclick = showUpgradeModal;
     if (startBtn) startBtn.onclick = showUpgradeModal;
-    if (cuecardModeBtn) cuecardModeBtn.onclick = showUpgradeModal;
     if (proBadge) proBadge.style.display = 'none';
     document.getElementById('manageSubBtn').style.display = 'none';
-    document.querySelectorAll('.pro-lock').forEach(function(el) { el.style.display = ''; });
-    // Force auto mode if currently on cuecard
-    if (document.querySelector('[data-mode="cuecard"].active')) {
-      setMode('auto');
-    }
     // Show upgrade modal automatically on first load for non-pro users
     setTimeout(function() { showUpgradeModal(); }, 800);
   } else {
-    // Not signed in - lock pro modes behind sign-in prompt
+    // Not signed in
     goLiveBtn.style.display = 'none';
     if (proBadge) proBadge.style.display = 'none';
     document.getElementById('manageSubBtn').style.display = 'none';
-    if (cuecardModeBtn) cuecardModeBtn.onclick = function() { signIn(); };
-    var voiceModeBtn = document.querySelector('[data-mode="voice"]');
-    if (voiceModeBtn) voiceModeBtn.onclick = function() { signIn(); };
-    document.querySelectorAll('.pro-lock').forEach(function(el) { el.style.display = ''; });
   }
 }
 
