@@ -1,9 +1,9 @@
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const PRICES = {
-  monthly: 'price_1THxKTKa2ZfgFcZ5SnVRRqIv',
-  annual: 'price_1TIAqRKa2ZfgFcZ5JB4Cxu9p',
-  lifetime: 'price_1TIAtCKa2ZfgFcZ5QCRp2lIM'
+  monthly: 'price_1TLUo1Ka2ZfgFcZ5T1KgF6PC',
+  annual: 'price_1TLUo1Ka2ZfgFcZ568YFSZJA',
+  lifetime: 'price_1TLUo3Ka2ZfgFcZ5WJ7Lt5bT'
 };
 
 exports.handler = async (event) => {
@@ -51,7 +51,7 @@ exports.handler = async (event) => {
     } else {
       sessionConfig.mode = 'subscription';
       sessionConfig.subscription_data = {
-        trial_period_days: 30,
+        trial_period_days: 14,
         metadata: { firebaseUid: uid, plan: plan }
       };
     }
