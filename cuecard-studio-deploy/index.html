@@ -1616,10 +1616,14 @@ function applyProGating() {
     // Show upgrade modal automatically on first load for non-pro users
     setTimeout(function() { showUpgradeModal(); }, 800);
   } else {
-    // Not signed in
+    // Not signed in - lock pro modes behind sign-in prompt
     goLiveBtn.style.display = 'none';
     if (proBadge) proBadge.style.display = 'none';
     document.getElementById('manageSubBtn').style.display = 'none';
+    if (cuecardModeBtn) cuecardModeBtn.onclick = function() { signIn(); };
+    var voiceModeBtn = document.querySelector('[data-mode="voice"]');
+    if (voiceModeBtn) voiceModeBtn.onclick = function() { signIn(); };
+    document.querySelectorAll('.pro-lock').forEach(function(el) { el.style.display = ''; });
   }
 }
 
