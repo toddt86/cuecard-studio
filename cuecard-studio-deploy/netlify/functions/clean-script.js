@@ -12,6 +12,7 @@ if (!admin.apps.length) {
 
 const MODEL = 'claude-haiku-4-5';
 const MAX_INPUT_CHARS = 20000; // ~5k tokens, plenty for a script
+const MONTHLY_AI_LIMIT = 100;
 
 const PROMPTS = {
   clean: `You are a script cleaner for a teleprompter app. The user will give you a script that may contain production junk. Your job:
@@ -114,6 +115,23 @@ exports.handler = async function(event) {
       return { statusCode: 403, body: JSON.stringify({ error: 'Pro subscription required' }) };
     }
 
+    // Check and enforce monthly AI usage cap
+    const db = admin.firestore();
+    const usageRef = db.doc('users/' + uid + '/settings/aiUsage');
+    const usageSnap = await usageRef.get();
+    const usage = usageSnap.exists ? usageSnap.data() : {};
+    const now = new Date();
+    const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    const count = (usage.month === currentMonth) ? (usage.count || 0) : 0;
+
+    if (count >= MONTHLY_AI_LIMIT) {
+      return { statusCode: 429, body: JSON.stringify({
+        error: 'Monthly AI limit reached (' + MONTHLY_AI_LIMIT + ' uses). Resets on the 1st.',
+        limit: MONTHLY_AI_LIMIT,
+        used: count
+      }) };
+    }
+
     // Call Claude
     const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -147,10 +165,13 @@ exports.handler = async function(event) {
       return { statusCode: 502, body: JSON.stringify({ error: 'Empty response from AI' }) };
     }
 
+    // Increment usage counter after successful call
+    await usageRef.set({ month: currentMonth, count: count + 1 }, { merge: true });
+
     return {
       statusCode: 200,
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ result: cleaned })
+      body: JSON.stringify({ result: cleaned, aiUsed: count + 1, aiLimit: MONTHLY_AI_LIMIT })
     };
   } catch (err) {
     console.error('clean-script error:', err);
