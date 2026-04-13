@@ -2167,7 +2167,12 @@ function sendToPrompter() {
 
   db.collection('users').doc(currentUser.uid).collection('live').doc('current').set({
     content: script,
-    sentAt: firebase.firestore.FieldValue.serverTimestamp()
+    sentAt: firebase.firestore.FieldValue.serverTimestamp(),
+    settings: {
+      mode: state.mode, speed: state.speed, fontSize: state.fontSize,
+      margin: state.margin, fontColor: state.fontColor, mirror: state.mirror,
+      focusZone: state.focusZone, countdownEnabled: state.countdownEnabled
+    }
   }).then(function() {
     showToast('Sent to prompter!');
   }).catch(function(error) {
@@ -2194,6 +2199,11 @@ function enterLiveMode() {
     received.textContent = 'Script received' + fromText + '! ' + words + ' words';
     received.style.display = '';
 
+    // Apply sender's settings if included
+    if (data.settings) {
+      applyRemoteSettings(data.settings);
+    }
+
     document.getElementById('scriptInput').value = data.content;
     document.getElementById('scriptInput').dispatchEvent(new Event('input'));
 
@@ -2203,16 +2213,29 @@ function enterLiveMode() {
     }, 1200);
   }
 
-  // Listen for personal live sends
+  // Listen for personal live sends and real-time settings changes
+  var lastSettingsJson = null;
   liveListener = db.collection('users').doc(currentUser.uid).collection('live').doc('current')
     .onSnapshot(function(doc) {
-      if (doc.exists && doc.data().content) {
-        var data = doc.data();
+      if (!doc.exists) return;
+      var data = doc.data();
+
+      // Check for new script
+      if (data.content) {
         var sentAt = data.sentAt ? data.sentAt.toMillis() : 0;
         if (lastSentAt !== null && sentAt > lastSentAt) {
           handleIncomingScript(data, sentAt);
         }
         lastSentAt = sentAt;
+      }
+
+      // Check for real-time settings changes (while prompter is running)
+      if (data.settings) {
+        var settingsJson = JSON.stringify(data.settings);
+        if (lastSettingsJson !== null && settingsJson !== lastSettingsJson) {
+          applyRemoteSettings(data.settings);
+        }
+        lastSettingsJson = settingsJson;
       }
     });
 
@@ -2229,6 +2252,51 @@ function enterLiveMode() {
           lastTeamSentAt = sentAt;
         }
       });
+  }
+}
+
+function applyRemoteSettings(s) {
+  if (s.mode) { state.mode = s.mode; setMode(s.mode); }
+  if (s.speed !== undefined) {
+    state.speed = s.speed;
+    document.getElementById('speedSlider').value = s.speed;
+    document.getElementById('speedValue').textContent = s.speed;
+  }
+  if (s.fontSize !== undefined) {
+    state.fontSize = s.fontSize;
+    document.getElementById('fontSlider').value = s.fontSize;
+    document.getElementById('fontValue').textContent = s.fontSize;
+    document.documentElement.style.setProperty('--prompter-font-size', s.fontSize + 'px');
+  }
+  if (s.margin !== undefined) {
+    state.margin = s.margin;
+    document.getElementById('marginSlider').value = s.margin;
+    document.getElementById('marginValue').textContent = s.margin + '%';
+    document.documentElement.style.setProperty('--prompter-margin', s.margin + '%');
+  }
+  if (s.fontColor) {
+    state.fontColor = s.fontColor;
+    document.documentElement.style.setProperty('--prompter-font-color', s.fontColor);
+    document.querySelectorAll('.color-swatch').forEach(function(sw) {
+      sw.classList.toggle('active', sw.dataset.color === s.fontColor);
+    });
+  }
+  if (s.mirror !== undefined) {
+    state.mirror = s.mirror;
+    document.getElementById('mirrorToggle').classList.toggle('active', s.mirror);
+    var pt = document.getElementById('prompterText');
+    if (pt) pt.classList.toggle('mirrored', s.mirror);
+    var ct = document.getElementById('cueCardText');
+    if (ct) ct.classList.toggle('mirrored', s.mirror);
+    document.getElementById('prompterHUD').classList.toggle('mirrored', s.mirror);
+    document.getElementById('speedFlash').classList.toggle('mirrored', s.mirror);
+    document.getElementById('elapsedTime').classList.toggle('mirrored', s.mirror);
+  }
+  if (s.focusZone !== undefined) {
+    state.focusZone = s.focusZone;
+    document.getElementById('focusToggle').classList.toggle('active', s.focusZone);
+    var fz = document.getElementById('focusLine');
+    if (fz) fz.style.display = s.focusZone ? '' : 'none';
   }
 }
 
@@ -2328,6 +2396,17 @@ function saveSettings() {
   };
   db.collection('users').doc(currentUser.uid).collection('settings').doc('prefs').set(settings, { merge: true })
     .catch(function(e) { console.log('Settings save error:', e); });
+
+  // If we're the sender (not in live mode), push settings to live doc for real-time sync
+  if (!state.inLiveMode) {
+    db.collection('users').doc(currentUser.uid).collection('live').doc('current').set({
+      settings: {
+        mode: state.mode, speed: state.speed, fontSize: state.fontSize,
+        margin: state.margin, fontColor: state.fontColor, mirror: state.mirror,
+        focusZone: state.focusZone
+      }
+    }, { merge: true }).catch(function(e) { console.log('Live settings sync error:', e); });
+  }
 }
 
 function loadSettings() {
