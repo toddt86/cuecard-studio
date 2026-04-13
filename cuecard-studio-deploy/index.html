@@ -2203,11 +2203,17 @@ function enterLiveMode() {
   let lastTeamSentAt = null;
 
   function handleIncomingScript(data, sentAt, lastRef) {
-    var received = document.getElementById('liveReceived');
-    var words = data.content.trim().split(/\s+/).length;
-    var fromText = data.sentByName ? ' from ' + data.sentByName : '';
-    received.textContent = 'Script received' + fromText + '! ' + words + ' words';
-    received.style.display = '';
+    // Stop any currently running prompter first (clean up old mode)
+    var prompterWasActive = document.getElementById('prompterScreen').classList.contains('active');
+    if (prompterWasActive) {
+      state.playing = false;
+      cancelAnimationFrame(state.animFrame);
+      stopElapsedTimer();
+      stopVoiceRecognition();
+      document.getElementById('prompterScreen').classList.remove('active');
+      document.getElementById('cueCardScreen').classList.remove('active');
+      document.getElementById('prompterContent').style.display = '';
+    }
 
     // Apply sender's settings if included
     if (data.settings) {
@@ -2216,6 +2222,13 @@ function enterLiveMode() {
 
     document.getElementById('scriptInput').value = data.content;
     document.getElementById('scriptInput').dispatchEvent(new Event('input'));
+
+    var received = document.getElementById('liveReceived');
+    var words = data.content.trim().split(/\s+/).length;
+    var fromText = data.sentByName ? ' from ' + data.sentByName : '';
+    received.textContent = 'Script received' + fromText + '! ' + words + ' words';
+    received.style.display = '';
+    document.getElementById('liveModeScreen').style.display = 'flex';
 
     setTimeout(function() {
       document.getElementById('liveModeScreen').style.display = 'none';
