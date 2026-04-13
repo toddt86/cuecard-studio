@@ -14,6 +14,8 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 <!-- Firebase -->
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -723,7 +725,14 @@ html, body {
   font-size: 13px;
   color: var(--text-secondary);
   font-family: var(--font-mono);
+  align-items: center;
 }
+.import-btn {
+  margin-left: auto; background: none; border: 1px solid var(--border); color: var(--text-secondary);
+  padding: 3px 10px; border-radius: 6px; font-size: 12px; font-family: var(--font-ui);
+  cursor: pointer; transition: all 0.15s;
+}
+.import-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 /* AI Tools dropdown */
 .script-header {
@@ -1293,6 +1302,7 @@ html, body {
         </div>
       </div>
       <textarea id="scriptInput" placeholder="Paste or type your script here..."></textarea>
+      <input type="file" id="scriptFileInput" accept=".docx,.pdf,.txt" style="display:none;" onchange="handleFileImport(this)">
       <div class="ai-loading-overlay" id="aiLoadingOverlay">
         <div class="ai-spinner"></div>
         <div class="ai-label" id="aiLoadingLabel">Working...</div>
@@ -1300,6 +1310,7 @@ html, body {
       <div class="script-meta">
         <span id="wordCount">0 words</span>
         <span id="readTime">~0 min read</span>
+        <button type="button" class="import-btn" onclick="triggerFileImport()">&#128206; Import File</button>
       </div>
     </div>
 
@@ -1507,6 +1518,11 @@ html, body {
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+// ════════════════ PDF.JS WORKER ════════════════
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
 // ════════════════ FIREBASE INIT ════════════════
 const firebaseConfig = {
   apiKey: "AIzaSyC-Xe23Ohv8t_RENn8L656399MyxzRT3RQ",
@@ -2432,6 +2448,57 @@ var AI_LABELS = {
   split: 'Splitting scripts...',
   punctuation: 'Fixing punctuation...'
 };
+
+function triggerFileImport() {
+  if (!currentUser || !isPro) { showUpgradeModal(); return; }
+  document.getElementById('scriptFileInput').click();
+}
+
+async function handleFileImport(input) {
+  var file = input.files[0];
+  if (!file) return;
+  input.value = ''; // reset so same file can be re-imported
+
+  var name = file.name.toLowerCase();
+  var ta = document.getElementById('scriptInput');
+
+  try {
+    var text = '';
+    if (name.endsWith('.txt')) {
+      text = await file.text();
+    } else if (name.endsWith('.docx')) {
+      var arrayBuf = await file.arrayBuffer();
+      var result = await mammoth.extractRawText({ arrayBuffer: arrayBuf });
+      text = result.value;
+    } else if (name.endsWith('.pdf')) {
+      var arrayBuf = await file.arrayBuffer();
+      var pdf = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
+      var pages = [];
+      for (var i = 1; i <= pdf.numPages; i++) {
+        var page = await pdf.getPage(i);
+        var content = await page.getTextContent();
+        pages.push(content.items.map(function(item) { return item.str; }).join(' '));
+      }
+      text = pages.join('\n\n');
+    } else {
+      alert('Unsupported file type. Please use .txt, .docx, or .pdf files.');
+      return;
+    }
+
+    text = text.trim();
+    if (!text) {
+      alert('No text found in that file.');
+      return;
+    }
+
+    ta.value = text;
+    ta.dispatchEvent(new Event('input'));
+    showToast('Imported: ' + file.name);
+  } catch (err) {
+    console.error('File import error:', err);
+    alert('Could not import file: ' + (err.message || 'unknown error'));
+  }
+}
 
 async function runAiAction(action) {
   document.getElementById('aiToolsMenu').classList.remove('active');
