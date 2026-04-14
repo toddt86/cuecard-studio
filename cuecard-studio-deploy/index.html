@@ -1293,6 +1293,10 @@ html, body {
               <span class="ai-title">Paragraph Breaks</span>
               <span class="ai-desc">Add logical paragraph breaks for readability.</span>
             </button>
+            <button type="button" onclick="runAiAction('lineByLine')">
+              <span class="ai-title">One Line Per Sentence</span>
+              <span class="ai-desc">Put every sentence on its own line. No blank lines.</span>
+            </button>
             <button type="button" onclick="runAiAction('split')">
               <span class="ai-title">Split Scripts</span>
               <span class="ai-desc">Detect multiple scripts and separate with dividers.</span>
@@ -2181,7 +2185,9 @@ function sendToPrompter() {
     settings: {
       mode: state.mode, speed: state.speed, fontSize: state.fontSize,
       margin: state.margin, fontColor: state.fontColor, mirror: state.mirror,
-      focusZone: state.focusZone, countdownEnabled: state.countdownEnabled
+      focusZone: state.focusZone, countdownEnabled: state.countdownEnabled,
+      cueSplitMode: state.cueSplitMode, chunkSize: state.chunkSize,
+      triggerOffset: state.triggerOffset
     }
   }).then(function() {
     showToast('Sent to prompter!');
@@ -2321,6 +2327,36 @@ function applyRemoteSettings(s) {
     var fz = document.getElementById('focusLine');
     if (fz) fz.style.display = s.focusZone ? '' : 'none';
   }
+  if (s.countdownEnabled !== undefined) {
+    state.countdownEnabled = s.countdownEnabled;
+    var cdBtn = document.getElementById('countdownToggle');
+    if (cdBtn) cdBtn.classList.toggle('active', s.countdownEnabled);
+  }
+  if (s.cueSplitMode) {
+    state.cueSplitMode = s.cueSplitMode;
+    document.querySelectorAll('.split-mode-btn').forEach(function(b) {
+      b.classList.toggle('active', b.dataset.split === s.cueSplitMode);
+    });
+    var chunkCtl = document.getElementById('chunkSizeControl');
+    if (chunkCtl) {
+      var showChunk = (state.mode === 'voice') || (state.mode === 'cuecard' && s.cueSplitMode === 'words');
+      chunkCtl.style.display = showChunk ? 'flex' : 'none';
+    }
+  }
+  if (s.chunkSize !== undefined) {
+    state.chunkSize = s.chunkSize;
+    var chunkSlider = document.getElementById('chunkSlider');
+    var chunkValue = document.getElementById('chunkValue');
+    if (chunkSlider) chunkSlider.value = s.chunkSize;
+    if (chunkValue) chunkValue.textContent = s.chunkSize;
+  }
+  if (s.triggerOffset !== undefined) {
+    state.triggerOffset = s.triggerOffset;
+    var trigSlider = document.getElementById('triggerSlider');
+    var trigValue = document.getElementById('triggerValue');
+    if (trigSlider) trigSlider.value = s.triggerOffset;
+    if (trigValue) trigValue.textContent = ordinalLabel(s.triggerOffset);
+  }
 }
 
 function exitLiveMode() {
@@ -2440,7 +2476,9 @@ function saveSettings() {
       settings: {
         mode: state.mode, speed: state.speed, fontSize: state.fontSize,
         margin: state.margin, fontColor: state.fontColor, mirror: state.mirror,
-        focusZone: state.focusZone
+        focusZone: state.focusZone, countdownEnabled: state.countdownEnabled,
+        cueSplitMode: state.cueSplitMode, chunkSize: state.chunkSize,
+        triggerOffset: state.triggerOffset
       }
     }, { merge: true }).catch(function(e) { console.log('Live settings sync error:', e); });
   }
@@ -2567,6 +2605,7 @@ function aiUndo() {
 var AI_LABELS = {
   clean: 'Cleaning script...',
   paragraphs: 'Adding paragraph breaks...',
+  lineByLine: 'One line per sentence...',
   split: 'Splitting scripts...',
   punctuation: 'Fixing punctuation...'
 };
