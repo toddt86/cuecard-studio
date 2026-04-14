@@ -3054,46 +3054,54 @@ function startVoiceRecognition() {
 
     rec.onresult = function(event) {
       if (!state.voiceListening) return;
-      // Grab the latest result (interim or final)
-      var last = event.results[event.results.length - 1];
-      var transcript = last[0].transcript.trim();
-      if (!transcript) return;
-      // Get the last few words heard
-      var heardWords = transcript.split(/\s+/);
-      var recent = heardWords.slice(-7); // last 7 words for safety with higher offsets
 
-      // Get the trigger word: Nth from last of current chunk (user-configurable)
       var currentCard = state.cueCards[state.cueIndex];
       if (!currentCard) return;
       var cardWords = currentCard.split(/\s+/);
       var offset = state.triggerOffset || 4;
       var triggerWord;
       if (cardWords.length < offset) {
-        // For short final chunks, trigger on the last word instead
+        // For short final chunks, trigger on the last word instead.
         triggerWord = cardWords[cardWords.length - 1];
       } else {
         triggerWord = cardWords[cardWords.length - offset];
       }
 
-      // Check if any of the recent heard words match the trigger
-      for (var i = 0; i < recent.length; i++) {
-        if (wordsMatch(recent[i], triggerWord)) {
-          // Debounce: avoid firing multiple times for same chunk
-          if (Date.now() - state._voiceLastAdvanceAt < 800) return;
-          state._voiceLastAdvanceAt = Date.now();
-          // Visual flash to confirm trigger fired
-          var screen = document.getElementById('cueCardScreen');
-          screen.classList.remove('voice-trigger-flash');
-          void screen.offsetWidth; // force reflow so animation replays
-          screen.classList.add('voice-trigger-flash');
-          if (state.cueIndex < state.cueCards.length - 1) {
-            cueNext();
-            // Reset recognition to clear the transcript buffer.
-            // Prevents stale words from triggering the next card.
-            // The onend handler auto-restarts in ~200ms (during card fade).
-            try { state.voiceRecognition.abort(); } catch(e) {}
-          }
-          return;
+      // Count how many times the trigger word appears on THIS card.
+      // We advance only after we've heard that many matches, so a duplicate
+      // earlier in the card does not fire prematurely.
+      var expectedMatches = 0;
+      for (var cw = 0; cw < cardWords.length; cw++) {
+        if (wordsMatch(cardWords[cw], triggerWord)) expectedMatches++;
+      }
+      if (expectedMatches < 1) expectedMatches = 1;
+
+      // Count matches across the entire current recognition session (all
+      // results, final and interim). rec.abort() clears this between cards.
+      var heardMatches = 0;
+      for (var r = 0; r < event.results.length; r++) {
+        var resText = (event.results[r][0] && event.results[r][0].transcript) || '';
+        var resWords = resText.trim().split(/\s+/);
+        for (var h = 0; h < resWords.length; h++) {
+          if (resWords[h] && wordsMatch(resWords[h], triggerWord)) heardMatches++;
+        }
+      }
+
+      if (heardMatches >= expectedMatches) {
+        // Debounce: avoid firing multiple times for the same card.
+        if (Date.now() - state._voiceLastAdvanceAt < 800) return;
+        state._voiceLastAdvanceAt = Date.now();
+        // Visual flash to confirm trigger fired
+        var screen = document.getElementById('cueCardScreen');
+        screen.classList.remove('voice-trigger-flash');
+        void screen.offsetWidth; // force reflow so animation replays
+        screen.classList.add('voice-trigger-flash');
+        if (state.cueIndex < state.cueCards.length - 1) {
+          cueNext();
+          // Reset recognition to clear the transcript buffer.
+          // Prevents stale words from triggering the next card.
+          // The onend handler auto-restarts in ~200ms (during card fade).
+          try { state.voiceRecognition.abort(); } catch(e) {}
         }
       }
     };
