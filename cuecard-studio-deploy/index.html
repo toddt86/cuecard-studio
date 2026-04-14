@@ -2758,6 +2758,7 @@ function startScrollMode(cleaned) {
   document.getElementById('cueCardScreen').classList.remove('active');
   document.getElementById('speedHUD').style.display = 'flex';
   document.getElementById('resetBtn').style.display = '';
+  document.getElementById('playPauseBtn').style.display = '';
   const pt = document.getElementById('prompterText');
   pt.textContent = cleaned; pt.classList.toggle('mirrored', state.mirror);
   document.getElementById('prompterHUD').classList.toggle('mirrored', state.mirror);
@@ -2780,6 +2781,7 @@ function startCueCardMode(cleaned) {
   document.getElementById('cueCardScreen').classList.add('active');
   document.getElementById('speedHUD').style.display = 'none';
   document.getElementById('resetBtn').style.display = 'none';
+  document.getElementById('playPauseBtn').style.display = 'none';
   state.cueCards = (state.cueSplitMode === 'words') ? splitIntoWordChunks(cleaned, state.chunkSize) : splitIntoCueCards(cleaned);
   state.cueIndex = 0;
   document.getElementById('hudMode').textContent = 'CUE CARD';
@@ -2818,6 +2820,7 @@ function startVoiceMode(cleaned) {
   document.getElementById('cueCardScreen').classList.add('active');
   document.getElementById('speedHUD').style.display = 'none';
   document.getElementById('resetBtn').style.display = 'none';
+  document.getElementById('playPauseBtn').style.display = 'none';
   state.cueCards = splitIntoWordChunks(cleaned, state.chunkSize);
   state.cueIndex = 0;
   document.getElementById('hudMode').textContent = 'VOICE';
