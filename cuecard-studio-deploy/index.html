@@ -2340,7 +2340,7 @@ function applyRemoteSettings(s) {
     });
     var chunkCtl = document.getElementById('chunkSizeControl');
     if (chunkCtl) {
-      var showChunk = (state.mode === 'cuecard' && s.cueSplitMode === 'words');
+      var showChunk = ((state.mode === 'cuecard' || state.mode === 'voice') && s.cueSplitMode === 'words');
       chunkCtl.style.display = showChunk ? 'flex' : 'none';
     }
   }
@@ -2397,9 +2397,9 @@ function setMode(mode) {
   document.getElementById('marginControl').style.display = hideForCard ? 'none' : 'flex';
   document.getElementById('focusToggle').style.display = hideForCard ? 'none' : '';
   var cueSplitControl = document.getElementById('cueSplitControl');
-  if (cueSplitControl) cueSplitControl.style.display = isCue ? 'flex' : 'none';
+  if (cueSplitControl) cueSplitControl.style.display = (isCue || isVoice) ? 'flex' : 'none';
   var chunkControl = document.getElementById('chunkSizeControl');
-  if (chunkControl) chunkControl.style.display = (isCue && state.cueSplitMode === 'words') ? 'flex' : 'none';
+  if (chunkControl) chunkControl.style.display = ((isCue || isVoice) && state.cueSplitMode === 'words') ? 'flex' : 'none';
   var triggerControl = document.getElementById('triggerOffsetControl');
   if (triggerControl) triggerControl.style.display = isVoice ? 'flex' : 'none';
   saveSettings();
@@ -2426,7 +2426,7 @@ function setCueSplitMode(mode) {
     b.classList.toggle('active', b.dataset.split === mode);
   });
   var chunkControl = document.getElementById('chunkSizeControl');
-  if (chunkControl) chunkControl.style.display = (mode === 'words' && state.mode === 'cuecard') ? 'flex' : 'none';
+  if (chunkControl) chunkControl.style.display = (mode === 'words' && (state.mode === 'cuecard' || state.mode === 'voice')) ? 'flex' : 'none';
   saveSettings();
 }
 
@@ -2728,29 +2728,116 @@ function getCueCardFontSize(text) {
   return Math.max(24, state.fontSize - 14);
 }
 
-var smartChunkCache = {};
+// Deterministic "Smart" chunker. Splits a script into cue cards in the
+// 6-18 word range, preferring strong boundaries (sentence ends) over
+// medium ones (semicolons/colons, comma+conjunction, commas) over weak
+// ones (conjunctions alone). Runs entirely in the browser, instant.
+function smartChunkScript(script) {
+  var MAX = 18;
+  var MIN = 6;
+  var OVERFLOW_SLACK = 4; // allow a little overflow to avoid tiny trailing cards
+  var text = String(script || '').replace(/\s+/g, ' ').trim();
+  if (!text) return [];
 
-function smartChunkCacheKey(script) {
-  return script.length + ':' + script.slice(0, 120) + ':' + script.slice(-120);
-}
+  // Split into units at every candidate break point, tagging each unit with
+  // the strength of the boundary at its end.
+  //   3 = sentence end (. ! ?)
+  //   2 = strong clause (; :)
+  //   1 = weak clause (,) or a conjunction coming up
+  //   0 = none (only at the final remainder)
+  var CONJ = /^(and|but|so|because|which|while|although|however|though|yet|or|nor)$/i;
+  var rawWords = text.split(' ');
+  var units = [];
+  var buf = [];
+  for (var i = 0; i < rawWords.length; i++) {
+    buf.push(rawWords[i]);
+    var w = rawWords[i];
+    var next = rawWords[i + 1] || '';
+    var strength = 0;
+    if (/[.!?]["')\]]*$/.test(w)) strength = 3;
+    else if (/[;:]["')\]]*$/.test(w)) strength = 2;
+    else if (/,["')\]]*$/.test(w)) strength = 1;
+    else if (CONJ.test(next.replace(/[.,;:!?"')\]]+$/, ''))) strength = 1;
+    if (strength > 0) {
+      units.push({ text: buf.join(' '), words: buf.length, strength: strength });
+      buf = [];
+    }
+  }
+  if (buf.length) units.push({ text: buf.join(' '), words: buf.length, strength: 0 });
 
-async function smartChunkScript(script) {
-  var key = smartChunkCacheKey(script);
-  if (smartChunkCache[key]) return smartChunkCache[key];
-  if (!currentUser) throw new Error('Not signed in');
-  var idToken = await currentUser.getIdToken();
-  var res = await fetch('/.netlify/functions/clean-script', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ idToken: idToken, action: 'smartChunk', script: script })
-  });
-  var data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Request failed');
-  if (!data.result) throw new Error('Empty result');
-  var cards = data.result.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
-  if (!cards.length) throw new Error('No cards parsed');
-  smartChunkCache[key] = cards;
-  return cards;
+  // Greedy merge units into cards within the word window.
+  var chunks = [];
+  var cur = null; // { text, words, endStrength }
+  function flush() { if (cur) { chunks.push(cur.text); cur = null; } }
+  function extend(u) {
+    if (!cur) { cur = { text: u.text, words: u.words, endStrength: u.strength }; return; }
+    cur.text += ' ' + u.text;
+    cur.words += u.words;
+    cur.endStrength = u.strength;
+  }
+
+  for (var u = 0; u < units.length; u++) {
+    var unit = units[u];
+    if (!cur) { cur = { text: unit.text, words: unit.words, endStrength: unit.strength }; continue; }
+    var combined = cur.words + unit.words;
+
+    if (combined <= MAX) {
+      // Fits. Flush the current card only if it's already large enough and sits at a strong boundary.
+      if (cur.words >= MIN && cur.endStrength >= 3) {
+        flush();
+        cur = { text: unit.text, words: unit.words, endStrength: unit.strength };
+      } else if (cur.words >= MIN && cur.endStrength >= 2 && combined > MAX - 2) {
+        // Near the max and parked at a strong-ish boundary: flush here rather than make an awkward card.
+        flush();
+        cur = { text: unit.text, words: unit.words, endStrength: unit.strength };
+      } else {
+        extend(unit);
+      }
+    } else {
+      // Overflow.
+      if (cur.words >= MIN) {
+        // Current is big enough, close it and start fresh.
+        flush();
+        if (unit.words <= MAX) {
+          cur = { text: unit.text, words: unit.words, endStrength: unit.strength };
+        } else {
+          // Unit is longer than MAX on its own — hard-split by word count.
+          var per = Math.floor((MIN + MAX) / 2);
+          var ws = unit.text.split(' ');
+          for (var k = 0; k < ws.length; k += per) chunks.push(ws.slice(k, k + per).join(' '));
+          cur = null;
+        }
+      } else {
+        // Current is too small; accept some overflow so we don't emit a stub.
+        if (combined <= MAX + OVERFLOW_SLACK) {
+          extend(unit);
+          flush();
+        } else {
+          // Forced to split the incoming unit.
+          var needed = MAX - cur.words;
+          var ws2 = unit.text.split(' ');
+          cur.text += ' ' + ws2.slice(0, needed).join(' ');
+          cur.words += needed;
+          flush();
+          var rest = ws2.slice(needed);
+          var per2 = Math.floor((MIN + MAX) / 2);
+          for (var m = 0; m < rest.length; m += per2) chunks.push(rest.slice(m, m + per2).join(' '));
+        }
+      }
+    }
+  }
+  flush();
+
+  // Post-process: if the last card is a stub, merge it into the previous one.
+  if (chunks.length >= 2) {
+    var lastWords = chunks[chunks.length - 1].split(' ').length;
+    var prevWords = chunks[chunks.length - 2].split(' ').length;
+    if (lastWords < MIN && prevWords + lastWords <= MAX + OVERFLOW_SLACK) {
+      chunks[chunks.length - 2] = chunks[chunks.length - 2] + ' ' + chunks.pop();
+    }
+  }
+
+  return chunks.filter(function(s) { return s && s.trim().length > 0; });
 }
 
 async function startPrompter() {
@@ -2763,19 +2850,24 @@ async function startPrompter() {
   }
   const cleaned = cleanScript(script);
 
-  // If the user picked a mode that needs AI chunking, do that first with an overlay.
-  // Smart chunking is a Pro feature; non-pro users fall back silently to the fixed
-  // word-count split in voice mode, and cannot select Smart for Cue Card at all.
+  // If the user picked Smart split, run it now with a visible overlay so they
+  // know something happened. Smart is Pro-gated: non-pro selections are blocked
+  // in setCueSplitMode, so if we get here with 'smart', the user is pro.
   var precomputedCards = null;
-  var wantsSmart = state.mode === 'voice' || (state.mode === 'cuecard' && state.cueSplitMode === 'smart');
-  var canUseAI = wantsSmart && currentUser && isPro;
-  if (canUseAI) {
+  var wantsSmart = state.cueSplitMode === 'smart'
+    && (state.mode === 'cuecard' || state.mode === 'voice')
+    && currentUser && isPro;
+  if (wantsSmart) {
     setAiLoading(true, 'Analyzing script, one moment...');
+    // Give the overlay at least ~450ms on screen so the user actually sees it,
+    // even though the chunker itself runs in well under a millisecond.
+    await new Promise(function(r) { setTimeout(r, 450); });
     try {
-      precomputedCards = await smartChunkScript(cleaned);
+      precomputedCards = smartChunkScript(cleaned);
+      if (!precomputedCards || !precomputedCards.length) precomputedCards = null;
     } catch (err) {
       console.error('Smart chunk failed:', err);
-      showToast('Smart chunk unavailable, using default split');
+      showToast('Smart split unavailable, using sentence split');
       precomputedCards = null;
     } finally {
       setAiLoading(false);
@@ -2878,10 +2970,14 @@ function startVoiceMode(cleaned, precomputedCards) {
   document.getElementById('speedHUD').style.display = 'none';
   document.getElementById('resetBtn').style.display = 'none';
   document.getElementById('playPauseBtn').style.display = 'none';
-  // Voice mode always prefers AI-chunked cards; fall back to a fixed 12-word split.
-  state.cueCards = (precomputedCards && precomputedCards.length)
-    ? precomputedCards
-    : splitIntoWordChunks(cleaned, 12);
+  // Voice mode respects the same Split By selector as Cue Card: sentence, word count, or smart.
+  if (precomputedCards && precomputedCards.length) {
+    state.cueCards = precomputedCards;
+  } else if (state.cueSplitMode === 'words') {
+    state.cueCards = splitIntoWordChunks(cleaned, state.chunkSize);
+  } else {
+    state.cueCards = splitIntoCueCards(cleaned);
+  }
   state.cueIndex = 0;
   document.getElementById('hudMode').textContent = 'VOICE';
   document.getElementById('cueCardText').classList.toggle('mirrored', state.mirror);
