@@ -62,6 +62,20 @@ Second script content here.
 
 Output ONLY the result. No preamble, no explanation, no markdown fences.`,
 
+  smartChunk: `You are splitting a teleprompter script into cue cards for on-camera talent. The user will give you a cleaned script. Your job:
+
+1. Split the script into cue cards. Put ONE card per line. Separate cards with a single newline.
+2. Each card must be between 6 and 18 words. Never exceed 18 words on a single card. Prefer 10 to 16 words when possible.
+3. Prefer breaks at the strongest natural boundaries, in this order:
+   a. End of a sentence (. ! ?)
+   b. End of an independent clause (; or a hard comma pause)
+   c. Before a conjunction (and, but, so, because, which) if a sentence would otherwise exceed 18 words
+4. NEVER split in the middle of a proper noun, product name, idiom, or tight phrase. Keep short sentences intact even if they are under 6 words, rather than force a merge.
+5. Do NOT change any word. No rephrasing, no edits, no added punctuation. Preserve every word exactly.
+6. Do NOT number the cards or add labels. Just the lines of script, one card per line, no blank lines between them.
+
+Output ONLY the resulting lines. No preamble, no explanation, no markdown.`,
+
   lineByLine: `You are formatting a teleprompter script so each sentence sits on its own line. The user will give you a script. Your job:
 
 1. Put every sentence on its own line. Separate sentences with a SINGLE newline (one line break), not a blank line between them.

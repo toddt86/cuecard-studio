@@ -1372,6 +1372,7 @@ html, body {
         <div style="display:flex;gap:4px;">
           <button type="button" class="split-mode-btn active" data-split="sentence" onclick="setCueSplitMode('sentence')">Sentence</button>
           <button type="button" class="split-mode-btn" data-split="words" onclick="setCueSplitMode('words')">Word Count</button>
+          <button type="button" class="split-mode-btn" data-split="smart" onclick="setCueSplitMode('smart')">&#10024; Smart</button>
         </div>
       </div>
       <div class="slider-control" id="chunkSizeControl" style="display:none;">
@@ -1381,7 +1382,7 @@ html, body {
       </div>
       <div class="slider-control" id="triggerOffsetControl" style="display:none;">
         <span class="slider-label">Trigger Word</span>
-        <input type="range" id="triggerSlider" min="4" max="7" value="4" oninput="updateTriggerOffset()">
+        <input type="range" id="triggerSlider" min="2" max="7" value="4" oninput="updateTriggerOffset()">
         <span class="slider-value" id="triggerValue">4th from end</span>
       </div>
     </div>
@@ -2339,7 +2340,7 @@ function applyRemoteSettings(s) {
     });
     var chunkCtl = document.getElementById('chunkSizeControl');
     if (chunkCtl) {
-      var showChunk = (state.mode === 'voice') || (state.mode === 'cuecard' && s.cueSplitMode === 'words');
+      var showChunk = (state.mode === 'cuecard' && s.cueSplitMode === 'words');
       chunkCtl.style.display = showChunk ? 'flex' : 'none';
     }
   }
@@ -2398,7 +2399,7 @@ function setMode(mode) {
   var cueSplitControl = document.getElementById('cueSplitControl');
   if (cueSplitControl) cueSplitControl.style.display = isCue ? 'flex' : 'none';
   var chunkControl = document.getElementById('chunkSizeControl');
-  if (chunkControl) chunkControl.style.display = (isVoice || (isCue && state.cueSplitMode === 'words')) ? 'flex' : 'none';
+  if (chunkControl) chunkControl.style.display = (isCue && state.cueSplitMode === 'words') ? 'flex' : 'none';
   var triggerControl = document.getElementById('triggerOffsetControl');
   if (triggerControl) triggerControl.style.display = isVoice ? 'flex' : 'none';
   saveSettings();
@@ -2415,12 +2416,17 @@ function updateSliderDisplay() {
 }
 
 function setCueSplitMode(mode) {
+  // Smart split uses AI and is a Pro feature.
+  if (mode === 'smart' && (!currentUser || !isPro)) {
+    showUpgradeModal();
+    return;
+  }
   state.cueSplitMode = mode;
   document.querySelectorAll('.split-mode-btn').forEach(function(b) {
     b.classList.toggle('active', b.dataset.split === mode);
   });
   var chunkControl = document.getElementById('chunkSizeControl');
-  if (chunkControl) chunkControl.style.display = (mode === 'words') ? 'flex' : 'none';
+  if (chunkControl) chunkControl.style.display = (mode === 'words' && state.mode === 'cuecard') ? 'flex' : 'none';
   saveSettings();
 }
 
@@ -2722,7 +2728,32 @@ function getCueCardFontSize(text) {
   return Math.max(24, state.fontSize - 14);
 }
 
-function startPrompter() {
+var smartChunkCache = {};
+
+function smartChunkCacheKey(script) {
+  return script.length + ':' + script.slice(0, 120) + ':' + script.slice(-120);
+}
+
+async function smartChunkScript(script) {
+  var key = smartChunkCacheKey(script);
+  if (smartChunkCache[key]) return smartChunkCache[key];
+  if (!currentUser) throw new Error('Not signed in');
+  var idToken = await currentUser.getIdToken();
+  var res = await fetch('/.netlify/functions/clean-script', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ idToken: idToken, action: 'smartChunk', script: script })
+  });
+  var data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  if (!data.result) throw new Error('Empty result');
+  var cards = data.result.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+  if (!cards.length) throw new Error('No cards parsed');
+  smartChunkCache[key] = cards;
+  return cards;
+}
+
+async function startPrompter() {
   const script = document.getElementById('scriptInput').value.trim();
   if (!script) {
     document.getElementById('scriptInput').focus();
@@ -2731,6 +2762,26 @@ function startPrompter() {
     return;
   }
   const cleaned = cleanScript(script);
+
+  // If the user picked a mode that needs AI chunking, do that first with an overlay.
+  // Smart chunking is a Pro feature; non-pro users fall back silently to the fixed
+  // word-count split in voice mode, and cannot select Smart for Cue Card at all.
+  var precomputedCards = null;
+  var wantsSmart = state.mode === 'voice' || (state.mode === 'cuecard' && state.cueSplitMode === 'smart');
+  var canUseAI = wantsSmart && currentUser && isPro;
+  if (canUseAI) {
+    setAiLoading(true, 'Analyzing script, one moment...');
+    try {
+      precomputedCards = await smartChunkScript(cleaned);
+    } catch (err) {
+      console.error('Smart chunk failed:', err);
+      showToast('Smart chunk unavailable, using default split');
+      precomputedCards = null;
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
   document.documentElement.style.setProperty('--prompter-font-size', state.fontSize + 'px');
   document.documentElement.style.setProperty('--prompter-line-height', '1.5');
   document.documentElement.style.setProperty('--prompter-margin', state.margin + '%');
@@ -2748,8 +2799,8 @@ function startPrompter() {
   document.body.style.overflow = 'auto';
   window.scrollTo(0, 1);
   setTimeout(() => { document.body.style.height = '100%'; document.body.style.overflow = 'hidden'; window.scrollTo(0, 0); }, 300);
-  if (state.mode === 'voice') startVoiceMode(cleaned);
-  else if (state.mode === 'cuecard') startCueCardMode(cleaned);
+  if (state.mode === 'voice') startVoiceMode(cleaned, precomputedCards);
+  else if (state.mode === 'cuecard') startCueCardMode(cleaned, precomputedCards);
   else startScrollMode(cleaned);
 }
 
@@ -2776,13 +2827,19 @@ function startScrollMode(cleaned) {
   });
 }
 
-function startCueCardMode(cleaned) {
+function startCueCardMode(cleaned, precomputedCards) {
   document.getElementById('prompterContent').style.display = 'none';
   document.getElementById('cueCardScreen').classList.add('active');
   document.getElementById('speedHUD').style.display = 'none';
   document.getElementById('resetBtn').style.display = 'none';
   document.getElementById('playPauseBtn').style.display = 'none';
-  state.cueCards = (state.cueSplitMode === 'words') ? splitIntoWordChunks(cleaned, state.chunkSize) : splitIntoCueCards(cleaned);
+  if (precomputedCards && precomputedCards.length) {
+    state.cueCards = precomputedCards;
+  } else if (state.cueSplitMode === 'words') {
+    state.cueCards = splitIntoWordChunks(cleaned, state.chunkSize);
+  } else {
+    state.cueCards = splitIntoCueCards(cleaned);
+  }
   state.cueIndex = 0;
   document.getElementById('hudMode').textContent = 'CUE CARD';
   document.getElementById('cueCardText').classList.toggle('mirrored', state.mirror);
@@ -2815,13 +2872,16 @@ function cuePrev() {
 }
 
 // ════════════════ CUECARD VOICE MODE ════════════════
-function startVoiceMode(cleaned) {
+function startVoiceMode(cleaned, precomputedCards) {
   document.getElementById('prompterContent').style.display = 'none';
   document.getElementById('cueCardScreen').classList.add('active');
   document.getElementById('speedHUD').style.display = 'none';
   document.getElementById('resetBtn').style.display = 'none';
   document.getElementById('playPauseBtn').style.display = 'none';
-  state.cueCards = splitIntoWordChunks(cleaned, state.chunkSize);
+  // Voice mode always prefers AI-chunked cards; fall back to a fixed 12-word split.
+  state.cueCards = (precomputedCards && precomputedCards.length)
+    ? precomputedCards
+    : splitIntoWordChunks(cleaned, 12);
   state.cueIndex = 0;
   document.getElementById('hudMode').textContent = 'VOICE';
   document.getElementById('cueCardText').classList.toggle('mirrored', state.mirror);
