@@ -62,6 +62,15 @@ Second script content here.
 
 Output ONLY the result. No preamble, no explanation, no markdown fences.`,
 
+  lineByLine: `You are formatting a teleprompter script so each sentence sits on its own line. The user will give you a script. Your job:
+
+1. Put every sentence on its own line. Separate sentences with a SINGLE newline (one line break), not a blank line between them.
+2. Treat each complete sentence (ending in . ! or ?) as its own line.
+3. Do NOT add blank lines between sentences. No double spacing.
+4. Do NOT change any words. Do not add, remove, rephrase, correct grammar, or fix punctuation.
+
+Output ONLY the reformatted script. No preamble, no explanation, no markdown, no quotes.`,
+
   punctuation: `You are fixing punctuation in a teleprompter script. The user will give you a script that may be missing punctuation marks (common with voice-transcribed or rough-draft text). Your job:
 
 1. Add missing periods at the end of sentences.
