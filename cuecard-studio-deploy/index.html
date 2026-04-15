@@ -958,7 +958,7 @@ html, body {
 #prompterContent::after { bottom: 0; background: linear-gradient(to top, #000 0%, transparent 100%); }
 
 /* Cue Card */
-#cueCardScreen { display: none; flex: 1; position: relative; flex-direction: column; align-items: center; justify-content: center; padding: 40px 32px; overflow: hidden; }
+#cueCardScreen { display: none; flex: 1; position: relative; flex-direction: column; align-items: center; justify-content: center; padding: 56px 32px 120px; overflow: hidden; }
 #cueCardScreen.active { display: flex; }
 #cueCardText { font-family: var(--font-ui); font-weight: 600; color: var(--prompter-font-color, #ffffff); text-align: center; line-height: 1.35; max-width: 92%; transition: opacity 0.2s ease, transform 0.2s ease; }
 #cueCardText.mirrored { transform: scaleX(-1); }
@@ -1031,7 +1031,7 @@ html, body {
   .hud-btn { width: 40px; height: 40px; font-size: 16px; }
   .hud-play { width: 48px; height: 48px; font-size: 20px; }
   .hud-speed { font-size: 16px; min-width: 44px; }
-  #cueCardScreen { padding: 24px 20px; }
+  #cueCardScreen { padding: 44px 20px 96px; }
   .cue-nav { bottom: 72px; gap: 12px; }
   .cue-prev-btn { padding: 12px 20px; font-size: 14px; }
   .cue-next-btn-inner { padding: 12px 32px; font-size: 14px; }
@@ -2778,12 +2778,15 @@ function splitIntoWordChunks(text, n) {
 }
 
 function getCueCardFontSize(text) {
+  // Pick a reasonable STARTING size based on character length. The
+  // showCueCard() auto-fit pass will shrink from here if the text still
+  // doesn't fit the visible area (above the HUD and progress bar).
   const len = text.length;
   if (len < 40) return Math.min(72, state.fontSize + 20);
   if (len < 80) return Math.min(60, state.fontSize + 10);
   if (len < 140) return state.fontSize;
-  if (len < 220) return Math.max(28, state.fontSize - 8);
-  return Math.max(24, state.fontSize - 14);
+  if (len < 200) return Math.max(28, state.fontSize - 12);
+  return Math.max(22, state.fontSize - 20);
 }
 
 // Deterministic "Smart" chunker. Splits a script into cue cards in the
@@ -3003,8 +3006,26 @@ function startCueCardMode(cleaned, precomputedCards) {
 
 function showCueCard() {
   const el = document.getElementById('cueCardText');
+  const screen = document.getElementById('cueCardScreen');
   const card = state.cueCards[state.cueIndex];
-  el.style.fontSize = getCueCardFontSize(card) + 'px'; el.textContent = card; el.classList.remove('fade-out');
+  el.textContent = card;
+  el.classList.remove('fade-out');
+  // Start from the char-length heuristic, then shrink until the rendered
+  // text actually fits the padded safe area (above the HUD, below the
+  // progress bar and cue counter). This prevents the 5th/6th line from
+  // fading into the HUD's black gradient on long cards.
+  let size = getCueCardFontSize(card);
+  el.style.fontSize = size + 'px';
+  const cs = getComputedStyle(screen);
+  const availableH = screen.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  const MIN_FIT = 22;
+  // Force reflow so scrollHeight is accurate, then step down in 2px
+  // increments until it fits or we hit the floor.
+  let guard = 40;
+  while (el.scrollHeight > availableH && size > MIN_FIT && guard-- > 0) {
+    size -= 2;
+    el.style.fontSize = size + 'px';
+  }
   document.getElementById('cueCounter').textContent = (state.cueIndex + 1) + ' / ' + state.cueCards.length;
   document.getElementById('progressBar').style.width = (((state.cueIndex + 1) / state.cueCards.length) * 100) + '%';
 }
