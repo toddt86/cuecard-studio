@@ -717,6 +717,7 @@ html, body {
 
 #scriptInput:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
 #scriptInput::placeholder { color: var(--text-dim); }
+#scriptInput.drag-hover { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); background: var(--accent-dim); }
 
 .script-meta {
   display: flex;
@@ -2625,8 +2626,12 @@ async function handleFileImport(input) {
   var file = input.files[0];
   if (!file) return;
   input.value = ''; // reset so same file can be re-imported
+  await importScriptFile(file);
+}
 
-  var name = file.name.toLowerCase();
+async function importScriptFile(file) {
+  if (!file) return;
+  var name = (file.name || '').toLowerCase();
   var ta = document.getElementById('scriptInput');
 
   try {
@@ -2666,6 +2671,59 @@ async function handleFileImport(input) {
     alert('Could not import file: ' + (err.message || 'unknown error'));
   }
 }
+
+// Drag-and-drop onto the script editor. Same gating and same file types as
+// the paperclip import button.
+(function() {
+  var ACCEPTED = ['.txt', '.docx', '.pdf'];
+  function hasAcceptedExt(name) {
+    name = (name || '').toLowerCase();
+    for (var i = 0; i < ACCEPTED.length; i++) if (name.endsWith(ACCEPTED[i])) return true;
+    return false;
+  }
+  document.addEventListener('DOMContentLoaded', function() {
+    var ta = document.getElementById('scriptInput');
+    if (!ta) return;
+    ['dragenter', 'dragover'].forEach(function(ev) {
+      ta.addEventListener(ev, function(e) {
+        if (!e.dataTransfer || !e.dataTransfer.types) return;
+        if (e.dataTransfer.types.indexOf('Files') === -1) return;
+        e.preventDefault();
+        e.stopPropagation();
+        ta.classList.add('drag-hover');
+      });
+    });
+    ['dragleave', 'dragend'].forEach(function(ev) {
+      ta.addEventListener(ev, function(e) {
+        ta.classList.remove('drag-hover');
+      });
+    });
+    ta.addEventListener('drop', async function(e) {
+      if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+      e.preventDefault();
+      e.stopPropagation();
+      ta.classList.remove('drag-hover');
+      var file = e.dataTransfer.files[0];
+      if (!hasAcceptedExt(file.name)) {
+        alert('Unsupported file type. Please drop a .txt, .docx, or .pdf file.');
+        return;
+      }
+      if (!currentUser || !isPro) { showUpgradeModal(); return; }
+      await importScriptFile(file);
+    });
+    // Prevent the browser from navigating away if the user misses the textarea.
+    window.addEventListener('dragover', function(e) {
+      if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.indexOf('Files') !== -1) {
+        e.preventDefault();
+      }
+    });
+    window.addEventListener('drop', function(e) {
+      if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.indexOf('Files') !== -1) {
+        e.preventDefault();
+      }
+    });
+  });
+})();
 
 async function runAiAction(action) {
   document.getElementById('aiToolsMenu').classList.remove('active');
