@@ -549,6 +549,31 @@ html, body {
   cursor: pointer;
 }
 
+/* Auth modal (Sign In / Sign Up) */
+.modal.auth-modal { max-width: 360px; position: relative; padding: 28px 24px 24px; }
+.auth-modal-close { position: absolute; top: 12px; right: 12px; width: 28px; height: 28px; border-radius: 50%; background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--text-secondary); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+.auth-modal-close:hover { color: var(--text-primary); }
+.modal.auth-modal h3 { text-align: center; margin-bottom: 4px; }
+.auth-modal-sub { text-align: center; font-size: 13px; color: var(--text-secondary); margin-bottom: 18px; }
+.oauth-btn { width: 100%; padding: 12px 14px; border-radius: 10px; font-family: var(--font-ui); font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 10px; transition: all 0.15s; }
+.oauth-btn svg { flex-shrink: 0; }
+.oauth-btn.google { background: #fff; color: #1f1f1f; border: 1px solid #d0d0d0; }
+.oauth-btn.google:hover { background: #f5f5f5; }
+.oauth-btn.apple { background: #000; color: #fff; border: 1px solid #000; }
+.oauth-btn.apple:hover { background: #1a1a1a; }
+.auth-divider { display: flex; align-items: center; margin: 16px 0; color: var(--text-secondary); font-size: 12px; font-family: var(--font-mono); }
+.auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.auth-divider span { padding: 0 12px; }
+.modal.auth-modal input { margin-bottom: 10px; }
+.auth-submit { width: 100%; margin-top: 4px; padding: 12px; font-size: 15px; }
+.auth-error { background: rgba(204,40,40,0.1); border: 1px solid rgba(204,40,40,0.4); border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #ff6b6b; margin-bottom: 10px; line-height: 1.4; }
+.auth-info { background: rgba(51,207,255,0.1); border: 1px solid rgba(51,207,255,0.4); border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #33CFFF; margin-bottom: 10px; line-height: 1.4; }
+.auth-toggle { text-align: center; margin-top: 14px; font-size: 13px; color: var(--text-secondary); }
+.auth-toggle a { color: var(--accent); text-decoration: none; font-weight: 600; margin-left: 4px; cursor: pointer; }
+.auth-toggle a:hover { text-decoration: underline; }
+.auth-forgot { display: block; text-align: center; margin-top: 8px; font-size: 12px; color: var(--text-secondary); text-decoration: none; cursor: pointer; }
+.auth-forgot:hover { color: var(--accent); }
+
 /* Upgrade modal */
 .upgrade-overlay {
   display: none;
@@ -1211,7 +1236,7 @@ html, body {
     <div class="tagline">Got an idea to make this better? <span class="contact-link" onclick="openContactModal()">Contact Us</span></div>
     <a href="how-it-works.html" style="display:inline-block;margin-top:10px;font-size:13px;color:var(--accent);text-decoration:none;border:1px solid var(--accent);padding:5px 16px;border-radius:20px;">How It Works</a>
     <div class="auth-area">
-      <button class="auth-btn sign-in-btn" id="signInBtn" onclick="signIn()">Sign In</button>
+      <button class="auth-btn sign-in-btn" id="signInBtn" onclick="openAuthModal()">Sign In</button>
       <div class="user-info" id="userInfo">
         <img class="user-avatar" id="userAvatar" src="" alt="">
         <span class="user-name" id="userName"></span><span class="pro-badge" id="proBadge" style="display:none;">PRO</span>
@@ -1418,6 +1443,42 @@ html, body {
   </div>
 </div>
 
+<!-- ════════ AUTH MODAL (Sign In / Sign Up) ════════ -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal auth-modal">
+    <button class="auth-modal-close" onclick="closeAuthModal()" aria-label="Close">&#10005;</button>
+    <h3 id="authModalTitle">Welcome back</h3>
+    <div class="auth-modal-sub" id="authModalSub">Sign in to cuecard.studio</div>
+
+    <button class="oauth-btn google" onclick="signInWithGoogle()">
+      <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.17-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92A8.78 8.78 0 0 0 17.64 9.2z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86a5.27 5.27 0 0 1-4.96-3.65H1.02v2.33A8.99 8.99 0 0 0 9 18z"/><path fill="#FBBC05" d="M4.04 10.77a5.43 5.43 0 0 1 0-3.54V4.9H1.02a9.01 9.01 0 0 0 0 8.2l3.02-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A8.99 8.99 0 0 0 9 0 8.99 8.99 0 0 0 1.02 4.9l3.02 2.33A5.27 5.27 0 0 1 9 3.58z"/></svg>
+      Continue with Google
+    </button>
+    <button class="oauth-btn apple" onclick="signInWithApple()">
+      <svg width="16" height="18" viewBox="0 0 16 18" xmlns="http://www.w3.org/2000/svg" fill="#fff"><path d="M13.27 9.55c-.02-2.1 1.72-3.11 1.8-3.16-.98-1.43-2.5-1.63-3.04-1.65-1.3-.13-2.53.76-3.19.76-.67 0-1.68-.75-2.76-.73-1.42.02-2.74.82-3.47 2.09-1.48 2.56-.38 6.35 1.06 8.44.7 1.02 1.54 2.17 2.62 2.13 1.05-.04 1.45-.68 2.72-.68 1.27 0 1.63.68 2.75.66 1.13-.02 1.85-1.04 2.55-2.06.8-1.18 1.13-2.33 1.15-2.39-.03-.01-2.2-.84-2.22-3.35zM11.13 3.3c.58-.7.97-1.67.86-2.64-.83.03-1.84.55-2.44 1.25-.53.62-1 1.6-.88 2.56.93.07 1.87-.47 2.46-1.17z"/></svg>
+      Continue with Apple
+    </button>
+
+    <div class="auth-divider"><span>or</span></div>
+
+    <div id="authNameRow" style="display:none;">
+      <input type="text" id="authName" placeholder="Your name" autocomplete="name">
+    </div>
+    <input type="email" id="authEmail" placeholder="Email address" autocomplete="email">
+    <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password">
+
+    <div id="authMessage"></div>
+
+    <button class="modal-save auth-submit" id="authSubmitBtn" onclick="submitEmailAuth()">Sign In</button>
+
+    <div class="auth-toggle">
+      <span id="authToggleText">New to cuecard.studio?</span>
+      <a id="authToggleLink" onclick="toggleAuthMode(event)">Create an account</a>
+    </div>
+    <a class="auth-forgot" id="authForgotLink" onclick="resetPassword(event)">Forgot password?</a>
+  </div>
+</div>
+
 <!-- ════════ CREATE TEAM MODAL ════════ -->
 <div class="modal-overlay" id="createTeamModal">
   <div class="modal">
@@ -1553,7 +1614,10 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
-const provider = new firebase.auth.GoogleAuthProvider();
+const googleProvider = new firebase.auth.GoogleAuthProvider();
+const appleProvider = new firebase.auth.OAuthProvider('apple.com');
+appleProvider.addScope('email');
+appleProvider.addScope('name');
 
 // ════════════════ AUTH ════════════════
 let currentUser = null;
@@ -1570,8 +1634,9 @@ auth.onAuthStateChanged(function(user) {
     userInfo.classList.add('visible');
     document.getElementById('remoteArea').classList.add('visible');
     renderRemoteLegend();
-    document.getElementById('userAvatar').src = user.photoURL || '';
-    document.getElementById('userName').textContent = user.displayName || 'User';
+    var displayName = user.displayName || (user.email ? user.email.split('@')[0] : 'User');
+    document.getElementById('userAvatar').src = user.photoURL || buildInitialsAvatar(displayName);
+    document.getElementById('userName').textContent = displayName;
     scriptsPanel.classList.add('visible');
     loadScripts();
     loadSettings();
@@ -1597,15 +1662,202 @@ auth.onAuthStateChanged(function(user) {
   }
 });
 
-function signIn() {
-  auth.signInWithPopup(provider).catch(function(error) {
-    console.error('Sign in error:', error);
+// Build an SVG data URL avatar using the first letter of the user's
+// name. Used when a sign-in provider (email/password, Apple private
+// relay) doesn't supply a photoURL.
+function buildInitialsAvatar(name) {
+  var letter = (name || 'U').trim().charAt(0).toUpperCase() || 'U';
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#cc2828"/><text x="50%" y="50%" dy=".1em" fill="#fff" font-family="Inter, system-ui, sans-serif" font-size="30" font-weight="700" text-anchor="middle" dominant-baseline="middle">' + letter + '</text></svg>';
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+
+// ════════════════ AUTH MODAL + MULTI-PROVIDER SIGN IN ════════════════
+// authMode: 'signin' (default), 'signup', or 'reset'
+var authMode = 'signin';
+
+function openAuthModal() {
+  authMode = 'signin';
+  applyAuthMode();
+  clearAuthMessage();
+  document.getElementById('authEmail').value = '';
+  document.getElementById('authPassword').value = '';
+  document.getElementById('authName').value = '';
+  document.getElementById('authModal').classList.add('active');
+  setTimeout(function() {
+    var emailInput = document.getElementById('authEmail');
+    if (emailInput) emailInput.focus();
+  }, 50);
+}
+
+function closeAuthModal() {
+  document.getElementById('authModal').classList.remove('active');
+  clearAuthMessage();
+}
+
+function applyAuthMode() {
+  var title = document.getElementById('authModalTitle');
+  var sub = document.getElementById('authModalSub');
+  var submit = document.getElementById('authSubmitBtn');
+  var toggleText = document.getElementById('authToggleText');
+  var toggleLink = document.getElementById('authToggleLink');
+  var nameRow = document.getElementById('authNameRow');
+  var forgotLink = document.getElementById('authForgotLink');
+  var pwInput = document.getElementById('authPassword');
+  if (authMode === 'signup') {
+    title.textContent = 'Create your account';
+    sub.textContent = 'Start using cuecard.studio';
+    submit.textContent = 'Create Account';
+    toggleText.textContent = 'Already have an account?';
+    toggleLink.textContent = 'Sign in';
+    nameRow.style.display = '';
+    forgotLink.style.display = 'none';
+    pwInput.setAttribute('autocomplete', 'new-password');
+  } else {
+    title.textContent = 'Welcome back';
+    sub.textContent = 'Sign in to cuecard.studio';
+    submit.textContent = 'Sign In';
+    toggleText.textContent = 'New to cuecard.studio?';
+    toggleLink.textContent = 'Create an account';
+    nameRow.style.display = 'none';
+    forgotLink.style.display = '';
+    pwInput.setAttribute('autocomplete', 'current-password');
+  }
+}
+
+function toggleAuthMode(e) {
+  if (e) e.preventDefault();
+  authMode = (authMode === 'signin') ? 'signup' : 'signin';
+  applyAuthMode();
+  clearAuthMessage();
+}
+
+function showAuthError(msg) {
+  var el = document.getElementById('authMessage');
+  el.innerHTML = '<div class="auth-error">' + msg + '</div>';
+}
+
+function showAuthInfo(msg) {
+  var el = document.getElementById('authMessage');
+  el.innerHTML = '<div class="auth-info">' + msg + '</div>';
+}
+
+function clearAuthMessage() {
+  var el = document.getElementById('authMessage');
+  if (el) el.innerHTML = '';
+}
+
+// Map Firebase auth error codes to friendly messages.
+function friendlyAuthError(error) {
+  var code = (error && error.code) || '';
+  switch (code) {
+    case 'auth/invalid-email': return 'That email address looks invalid.';
+    case 'auth/user-disabled': return 'This account has been disabled.';
+    case 'auth/user-not-found': return 'No account found with that email. Try creating one?';
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+    case 'auth/invalid-login-credentials':
+      return 'Wrong email or password.';
+    case 'auth/email-already-in-use': return 'That email is already registered. Try signing in.';
+    case 'auth/weak-password': return 'Password is too weak. Use at least 6 characters.';
+    case 'auth/popup-blocked': return 'Popup was blocked. Please allow popups and try again.';
+    case 'auth/popup-closed-by-user': return 'Sign in window was closed before finishing.';
+    case 'auth/operation-not-allowed': return 'This sign-in method is not enabled yet. Please try another option.';
+    case 'auth/network-request-failed': return 'Network error. Check your connection and try again.';
+    case 'auth/too-many-requests': return 'Too many attempts. Please wait a moment and try again.';
+    default: return (error && error.message) || 'Something went wrong. Please try again.';
+  }
+}
+
+function signInWithGoogle() {
+  clearAuthMessage();
+  auth.signInWithPopup(googleProvider).then(function() {
+    closeAuthModal();
+  }).catch(function(error) {
+    console.error('Google sign in error:', error);
     if (error.code === 'auth/popup-blocked') {
-      // Fallback to redirect
-      auth.signInWithRedirect(provider);
+      auth.signInWithRedirect(googleProvider);
+      return;
     }
+    showAuthError(friendlyAuthError(error));
   });
 }
+
+function signInWithApple() {
+  clearAuthMessage();
+  auth.signInWithPopup(appleProvider).then(function() {
+    closeAuthModal();
+  }).catch(function(error) {
+    console.error('Apple sign in error:', error);
+    if (error.code === 'auth/popup-blocked') {
+      auth.signInWithRedirect(appleProvider);
+      return;
+    }
+    showAuthError(friendlyAuthError(error));
+  });
+}
+
+function submitEmailAuth() {
+  clearAuthMessage();
+  var email = (document.getElementById('authEmail').value || '').trim();
+  var password = document.getElementById('authPassword').value || '';
+  var name = (document.getElementById('authName').value || '').trim();
+  if (!email || !password) {
+    showAuthError('Please enter both email and password.');
+    return;
+  }
+  if (authMode === 'signup') {
+    if (password.length < 6) {
+      showAuthError('Password must be at least 6 characters.');
+      return;
+    }
+    auth.createUserWithEmailAndPassword(email, password).then(function(cred) {
+      if (name && cred.user) {
+        return cred.user.updateProfile({ displayName: name });
+      }
+    }).then(function() {
+      closeAuthModal();
+      showToast('Welcome to cuecard.studio!');
+    }).catch(function(error) {
+      console.error('Sign up error:', error);
+      showAuthError(friendlyAuthError(error));
+    });
+  } else {
+    auth.signInWithEmailAndPassword(email, password).then(function() {
+      closeAuthModal();
+    }).catch(function(error) {
+      console.error('Sign in error:', error);
+      showAuthError(friendlyAuthError(error));
+    });
+  }
+}
+
+function resetPassword(e) {
+  if (e) e.preventDefault();
+  clearAuthMessage();
+  var email = (document.getElementById('authEmail').value || '').trim();
+  if (!email) {
+    showAuthError('Enter your email above, then tap "Forgot password?" again.');
+    return;
+  }
+  auth.sendPasswordResetEmail(email).then(function() {
+    showAuthInfo('Password reset email sent to ' + email + '. Check your inbox.');
+  }).catch(function(error) {
+    console.error('Password reset error:', error);
+    showAuthError(friendlyAuthError(error));
+  });
+}
+
+// Close auth modal when clicking the overlay (outside the modal box).
+document.getElementById('authModal').addEventListener('click', function(e) {
+  if (e.target.id === 'authModal') closeAuthModal();
+});
+// Submit email form on Enter key.
+['authEmail', 'authPassword', 'authName'].forEach(function(id) {
+  var el = document.getElementById(id);
+  if (el) el.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); submitEmailAuth(); }
+  });
+});
 
 function signOut() {
   auth.signOut();
