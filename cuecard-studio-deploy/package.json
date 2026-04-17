@@ -1,0 +1,9 @@
+{
+  "name": "cuecard-studio-deploy",
+  "private": true,
+  "description": "Netlify publish dir. Deps listed here so Netlify installs them in this folder (its package_path), which is where the ESM v2 bundler looks for external_node_modules at copy time.",
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "stripe": "^14.0.0"
+  }
+}
