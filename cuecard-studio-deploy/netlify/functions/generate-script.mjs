@@ -2,13 +2,20 @@
 // Feature 1: Script from URL.
 //
 // POST endpoint that verifies the user is signed in and on an active paid
-// tier, enforces their daily cross-feature quota, then calls Perplexity
-// sonar-pro with streaming enabled. We re-emit the upstream SSE in our own
-// compact format so the client only has to parse two event shapes:
+// tier, enforces their daily cross-feature quota, fetches the source article
+// server-side, then calls Claude Sonnet 4.6 with streaming enabled. We
+// re-emit the upstream SSE in our own compact format so the client only has
+// to parse two event shapes:
 //
 //   data: {"type":"token","content":"..."}
 //   data: {"type":"citations","citations":["url",...]}
 //   data: [DONE]
+//
+// Why Claude (not Perplexity): sonar-pro is a research tool — it blends web
+// search with training data even when handed the article text directly, and
+// fabricates specifics. Claude follows the "use only this article" rule and
+// doesn't invent facts. Article fetching happens server-side so Claude
+// receives real source content.
 //
 // Telemetry: we log userId + metadata + latency + cost estimate.
 // Never the URL the user submitted. Never a single character of the script.
@@ -20,26 +27,30 @@ import {
 } from './_shared/access-lite.mjs';
 import { buildScriptPrompt } from './_shared/writing-framework.js';
 
-const PERPLEXITY_URL = 'https://api.perplexity.ai/chat/completions';
-const MODEL = 'sonar-pro';
+const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
+const CLAUDE_MODEL = 'claude-sonnet-4-6';
+const CLAUDE_VERSION = '2023-06-01';
 const VALID_DURATIONS = [30, 60, 90, 120];
 const VALID_TONES = ['conversational', 'authoritative', 'energetic', 'documentary'];
 
+// Max output tokens for the script. Longest duration (120s / 320 words)
+// comfortably fits in ~600 tokens, but we allow headroom for the model's
+// internal variability and any pause markers.
+const MAX_OUTPUT_TOKENS = 1200;
+
 // Server-side article fetch config. We fetch the source URL ourselves and
-// pass the text directly into the prompt, instead of trusting Perplexity to
-// read the URL reliably. Why: sonar-pro's URL reading is inconsistent — it
-// sometimes blends training data into specifics, which yields scripts that
-// sound confident but contain fabricated facts. Feeding the article content
-// directly collapses that failure mode.
+// pass the text directly into the prompt. Claude treats the article as
+// source-of-truth and writes from it, instead of web-blending like
+// Perplexity did.
 const ARTICLE_FETCH_TIMEOUT_MS = 8000;
 const ARTICLE_FETCH_MAX_BYTES  = 5 * 1024 * 1024; // 5 MB ceiling on raw HTML
 const ARTICLE_TEXT_MAX_CHARS   = 15000;           // matches MAX_ARTICLE_TEXT_LEN in writing-framework
 const ARTICLE_TEXT_MIN_CHARS   = 400;             // below this, treat as failure and fall back to URL-only
 const ARTICLE_UA = 'Mozilla/5.0 (compatible; cuecard-studio/1.0; +https://cuecard.studio)';
 
-// sonar-pro pricing: $3 per M input tokens, $15 per M output tokens.
+// Claude Sonnet 4.6 pricing: $3 per M input tokens, $15 per M output tokens.
 function estimateCost(inputTokens, outputTokens) {
-  const inCost = (inputTokens / 1_000_000) * 3;
+  const inCost  = (inputTokens  / 1_000_000) * 3;
   const outCost = (outputTokens / 1_000_000) * 15;
   return +(inCost + outCost).toFixed(5);
 }
@@ -220,18 +231,20 @@ function jsonError(status, payload) {
   });
 }
 
-// Call Perplexity. Retry on 429 / 5xx / network errors with exponential
-// backoff. Never retry on 401 (bad key, fail closed).
-async function callPerplexityWithRetry(body, apiKey) {
+// Call Claude Messages API with streaming. Retry on 429 / 5xx / network
+// errors with exponential backoff. Never retry on 401 (bad key, fail closed)
+// or 400 (bad request — won't succeed on retry).
+async function callClaudeWithRetry(body, apiKey) {
   const maxAttempts = 3;
   let lastErr;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const res = await fetch(PERPLEXITY_URL, {
+      const res = await fetch(CLAUDE_URL, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'x-api-key': apiKey,
+          'anthropic-version': CLAUDE_VERSION,
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream'
         },
@@ -242,9 +255,17 @@ async function callPerplexityWithRetry(body, apiKey) {
 
       if (res.status === 401) {
         const t = await res.text();
-        console.error('Perplexity 401 (check PERPLEXITY_API_KEY):', t.slice(0, 300));
+        console.error('Claude 401 (check ANTHROPIC_API_KEY):', t.slice(0, 300));
         throw new AccessError(502, {
-          error: 'Our research service is misconfigured. We are on it.'
+          error: 'Our writing service is misconfigured. We are on it.'
+        });
+      }
+
+      if (res.status === 400) {
+        const t = await res.text();
+        console.error('Claude 400 (bad request):', t.slice(0, 500));
+        throw new AccessError(502, {
+          error: 'Something about that request confused the writer. Try again.'
         });
       }
 
@@ -257,9 +278,9 @@ async function callPerplexityWithRetry(body, apiKey) {
       }
 
       const errText = await res.text();
-      console.error(`Perplexity ${res.status}:`, errText.slice(0, 500));
+      console.error(`Claude ${res.status}:`, errText.slice(0, 500));
       throw new AccessError(502, {
-        error: 'Our research service is having a moment. Try again in a minute.'
+        error: 'Our writing service is having a moment. Try again in a minute.'
       });
     } catch (err) {
       if (err instanceof AccessError) throw err;
@@ -271,7 +292,7 @@ async function callPerplexityWithRetry(body, apiKey) {
     }
   }
 
-  console.error('Perplexity exhausted retries:', lastErr);
+  console.error('Claude exhausted retries:', lastErr);
   throw new AccessError(502, { error: 'Connection issue. Try again?' });
 }
 
@@ -280,8 +301,8 @@ export default async (request) => {
     return jsonError(405, { error: 'Method not allowed' });
   }
 
-  if (!process.env.PERPLEXITY_API_KEY) {
-    console.error('PERPLEXITY_API_KEY not set in environment');
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error('ANTHROPIC_API_KEY not set in environment');
     return jsonError(500, { error: 'Server misconfigured' });
   }
 
@@ -326,15 +347,14 @@ export default async (request) => {
     return jsonError(500, { error: 'Server error' });
   }
 
-  // Pre-fetch the article text server-side. If it succeeds, we feed the
-  // content directly to the model so it writes from the actual source
-  // instead of guessing at or hallucinating the article. If it fails
-  // (paywall, block, timeout), we fall back to URL-only mode — the prompt
-  // picks that up and shifts the model into "stay generic" posture.
+  // Pre-fetch the article text server-side. If it succeeds, Claude writes
+  // from the actual source. If it fails (paywall, block, timeout), we fall
+  // back to URL-only mode — the prompt picks that up and shifts the model
+  // into "stay generic, do not invent specifics" posture.
   const articleFetchStart = Date.now();
   const articleText = await fetchArticleText(url);
   const articleFetchMs = Date.now() - articleFetchStart;
-  const articleUsed = articleText.length >= 400; // matches ARTICLE_TEXT_MIN_CHARS
+  const articleUsed = articleText.length >= ARTICLE_TEXT_MIN_CHARS;
 
   const { systemPrompt, userPrompt, wordTarget, articleTextLen } = buildScriptPrompt({
     url,
@@ -343,41 +363,49 @@ export default async (request) => {
     articleText: articleUsed ? articleText : ''
   });
 
-  const perplexityBody = {
-    model: MODEL,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ],
+  // Claude Messages API shape differs from OpenAI-style: system is a
+  // top-level field, not a message. max_tokens is required.
+  const claudeBody = {
+    model: CLAUDE_MODEL,
+    max_tokens: MAX_OUTPUT_TOKENS,
     temperature: 0.6,
     stream: true,
-    return_citations: true,
-    return_images: false
+    system: systemPrompt,
+    messages: [
+      { role: 'user', content: userPrompt }
+    ]
   };
 
   let upstream;
   try {
-    upstream = await callPerplexityWithRetry(perplexityBody, process.env.PERPLEXITY_API_KEY);
+    upstream = await callClaudeWithRetry(claudeBody, process.env.ANTHROPIC_API_KEY);
   } catch (err) {
     if (err instanceof AccessError) return jsonError(err.statusCode, err.payload);
-    console.error('Perplexity call error:', err);
+    console.error('Claude call error:', err);
     return jsonError(502, {
-      error: 'Our research service is having a moment. Try again in a minute.'
+      error: 'Our writing service is having a moment. Try again in a minute.'
     });
   }
 
-  // Build a downstream stream that re-emits upstream SSE in our compact format,
-  // and logs telemetry once complete.
+  // Build a downstream stream that re-emits Claude SSE in our compact
+  // format, and logs telemetry once complete. The frontend expects the
+  // exact same token/citations/[DONE] shape it got before the Claude swap,
+  // so the client needs zero changes.
   const encoder = new TextEncoder();
   let outputChars = 0;
   let inputTokens = 0;
   let outputTokens = 0;
-  let citations = null;
   let streamError = null;
 
-  // Captured so we can log a safe sample if we never parsed any tokens from
-  // the upstream response. Helps diagnose format mismatches without exposing
-  // any user-generated content (there is none when outputChars stays 0).
+  // Claude doesn't return web citations the way Perplexity did. For
+  // attribution we emit the source URL itself as the citation — that IS
+  // the source of truth for the script. Only emit if the fetch succeeded;
+  // if we fell back to URL-only mode and Claude had to stay generic, the
+  // URL is still the best reference we have.
+  const citations = [url];
+
+  // Safe diagnostic sample if the upstream returns zero tokens. Since no
+  // user content flowed, logging the raw SSE is safe.
   let rawSample = '';
 
   const downstream = new ReadableStream({
@@ -396,36 +424,51 @@ export default async (request) => {
             rawSample = (rawSample + decoded).slice(0, 1500);
           }
 
-          // SSE events are separated by a blank line. Perplexity uses CRLF
-          // line endings (\r\n\r\n between events), so splitting on bare
-          // '\n\n' misses every boundary and no tokens flow through. Match
-          // both CRLF and LF forms.
+          // Claude SSE events are \n\n separated, with optional preceding
+          // `event:` line. Match both CRLF and LF.
           const events = buffer.split(/\r?\n\r?\n/);
           buffer = events.pop();
 
           for (const rawEvent of events) {
+            // Each event looks like:
+            //   event: content_block_delta
+            //   data: { ... }
+            // We only care about `data:` lines — the `event:` line is
+            // redundant because the `type` is inside the JSON payload.
             const lines = rawEvent.split('\n').map(l => l.trim()).filter(Boolean);
             for (const line of lines) {
               if (!line.startsWith('data:')) continue;
               const payload = line.slice(5).trim();
-              if (payload === '[DONE]') continue;
+              if (!payload || payload === '[DONE]') continue;
 
               let chunk;
               try { chunk = JSON.parse(payload); } catch { continue; }
 
-              if (Array.isArray(chunk.citations)) {
-                citations = chunk.citations;
-              }
-              if (chunk.usage) {
-                inputTokens = chunk.usage.prompt_tokens || inputTokens;
-                outputTokens = chunk.usage.completion_tokens || outputTokens;
-              }
+              // Claude's event types we care about:
+              // - message_start: includes usage.input_tokens
+              // - content_block_delta: delta.text is the token
+              // - message_delta: includes usage.output_tokens (final count)
+              // - message_stop: end-of-message
+              // Everything else (ping, content_block_start/stop) is ignored.
+              const t = chunk.type;
 
-              const delta = chunk.choices && chunk.choices[0] && chunk.choices[0].delta;
-              const content = delta && delta.content;
-              if (content) {
-                outputChars += content.length;
-                controller.enqueue(encoder.encode(sseEvent({ type: 'token', content })));
+              if (t === 'message_start' && chunk.message && chunk.message.usage) {
+                inputTokens = chunk.message.usage.input_tokens || inputTokens;
+                // Claude sometimes sends partial output_tokens in
+                // message_start (typically 0-3); we'll overwrite with the
+                // final count from message_delta.
+                outputTokens = chunk.message.usage.output_tokens || outputTokens;
+              } else if (t === 'message_delta' && chunk.usage) {
+                outputTokens = chunk.usage.output_tokens || outputTokens;
+              } else if (t === 'content_block_delta' && chunk.delta) {
+                const text = chunk.delta.text;
+                if (typeof text === 'string' && text.length) {
+                  outputChars += text.length;
+                  controller.enqueue(encoder.encode(sseEvent({ type: 'token', content: text })));
+                }
+              } else if (t === 'error' && chunk.error) {
+                console.error('Claude stream error event:', JSON.stringify(chunk.error).slice(0, 300));
+                streamError = new Error(chunk.error.message || 'upstream error');
               }
             }
           }
@@ -438,7 +481,10 @@ export default async (request) => {
       }
 
       try {
-        if (citations) {
+        // Only emit citations if we actually produced a script. An empty
+        // output probably means we errored — no point giving the user a
+        // citation to nothing.
+        if (outputChars > 0) {
           controller.enqueue(encoder.encode(sseEvent({ type: 'citations', citations })));
         }
         if (streamError) {
@@ -452,7 +498,7 @@ export default async (request) => {
       } catch {}
 
       // Diagnostic: if we reached end-of-stream with no content at all,
-      // log what Perplexity actually sent so we can see the format. Safe
+      // log what Claude actually sent so we can see the format. Safe
       // because there was no user content to leak — outputChars is 0.
       if (outputChars === 0) {
         console.warn('generate-script empty response diagnostic:', JSON.stringify({
@@ -473,6 +519,7 @@ export default async (request) => {
         tier: quota.tier,
         used: quota.used,
         limit: quota.limit,
+        model: CLAUDE_MODEL,
         duration: durationNum,
         tone,
         wordTarget: wordTarget.target,
@@ -483,9 +530,9 @@ export default async (request) => {
         inputTokens,
         outputTokens,
         outputChars,
-        citationCount: citations ? citations.length : 0,
+        citationCount: outputChars > 0 ? citations.length : 0,
         costEstimateUsd,
-        ok: !streamError
+        ok: !streamError && outputChars > 0
       }));
     },
 

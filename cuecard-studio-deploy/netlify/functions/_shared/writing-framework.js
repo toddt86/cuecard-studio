@@ -219,8 +219,8 @@ Output ONLY the script text. No headings. No preamble. No "Here's your script:".
 
 Just the script, ready to paste into a teleprompter. Pause markers (forward slashes) and line breaks are allowed. Nothing else is.`;
 
-// Clamp injected article text so the prompt stays well inside Perplexity's
-// context window. 15k chars is ~3-4k tokens, more than enough to cover any
+// Clamp injected article text so the prompt stays well inside the model's
+// context window. 15k chars is ~3-4k tokens — more than enough to cover any
 // typical news article while leaving headroom for the framework prompt.
 const MAX_ARTICLE_TEXT_LEN = 15000;
 
