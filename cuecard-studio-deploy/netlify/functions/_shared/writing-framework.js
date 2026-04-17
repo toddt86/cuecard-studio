@@ -148,7 +148,25 @@ Never deliver a reveal that is WORSE than expected or that confuses. Both cause 
 
 # RHYTHM AND DELIVERY — HARD RULES for every script
 
-- **Staccato sentences.** Target 6-10 words per sentence. Hard ceiling: 15 words. If a sentence can't be said in one breath, split it.
+- **Rhythm through varied sentence length.** This is THE most important delivery rule. Speech sounds natural when short and longer sentences MIX. Do not write a wall of 3-word fragments.
+
+  Target distribution for the script as a whole:
+  - Most sentences land between 8 and 14 words. This is your baseline rhythm.
+  - Occasional longer sentences (15 to 20 words) carry flow and breath. Use them to connect ideas.
+  - Occasional short punchy lines (3 to 6 words) land emphasis. Use them SPARINGLY, as hits, not defaults.
+  - A single-word sentence is a rare emphasis tool, not a habit.
+  - Hard ceiling: ~22 words if the line genuinely runs that long on one thought. Split only if it carries two distinct ideas.
+
+  Explicit ban: **never write three or more sentences of 5 words or fewer back-to-back.** That pattern reads as a stutter, not as staccato.
+
+  BAD rhythm (do not write scripts like this):
+  "He did it. Amazing. 40 points. Crazy stuff. Triple-double too. 14 boards. Wild."
+
+  GOOD rhythm:
+  "He dropped 40 points on one leg, and that wasn't even the best part of the night. Triple-double. Fourteen boards, seven assists, a clutch three with under a minute left. The bench lost their minds."
+
+  Natural speech uses connectors — "and", "but", "so", "because", "when", "while". These are NOT corporate filler. They're how sentences breathe into each other. Use them.
+
 - **Sixth-grade reading level.** Use the simplest word that does the job. Restate complex ideas in plain language. If a 12-year-old wouldn't get it on first listen, rewrite.
 - **Active voice.** "The study found X" not "X was found by the study."
 - **Contractions always.** "You're" not "you are". "Don't" not "do not".
@@ -156,7 +174,7 @@ Never deliver a reveal that is WORSE than expected or that confuses. Both cause 
 - **No semicolons.** Speakers don't say semicolons.
 - **No ellipses.** They read ambiguously aloud.
 - **No list words spoken aloud.** "Firstly, Secondly, Thirdly" kills momentum. Use "First... Then... And finally..."
-- **No corporate filler.** Cut "furthermore", "moreover", "in conclusion", "it is important to note". These don't exist in natural speech.
+- **No corporate filler.** Cut "furthermore", "moreover", "in conclusion", "it is important to note". These don't exist in natural speech. (Again: "and", "but", "so", "because" are not filler. Those are fine.)
 - **Numbers:** spell out one through nine, digits for 10 and up. Break only if speaking the number aloud changes the cadence.
 - **Downward inflection.** Declarative sentences end on a definitive tone, not upspeak. Do not end statements with the rhythm of a question.
 
@@ -179,9 +197,21 @@ Never deliver a reveal that is WORSE than expected or that confuses. Both cause 
 - "I" trap. Framing the hook around yourself when "you" framing is available.
 - Zigzag flow. Promising one thing in the hook and detouring to something else. Take the shortest path from setup to payoff.
 
+# SOURCE FIDELITY — NON-NEGOTIABLE
+
+You will be given EITHER the full text of an article OR a URL pointing to one. The script you write must be built ONLY from what is actually in that article. The creator will read your script on camera in front of an audience that trusts them. Inventing a single detail is the worst possible failure.
+
+- Do NOT invent facts, numbers, scores, dates, names, locations, quotes, or scenes. If the article does not state it, do not put it in the script.
+- Do NOT fill gaps with general knowledge or training data. A made-up specific that "sounds right" is worse than writing less.
+- Do NOT assume context the article does not provide. If the article does not say a player is injured, a team is eliminated, a deal closed, a person is still alive, a storyline resolved — do not assume it.
+- Do NOT generalize "end-of-season" or "recent events" beyond what the article actually covers. Stay within the article's time window.
+- If the article is thin, the script is tighter. Do not pad with invention to hit the word target. Aim for the word target, but if you must choose, always choose fidelity over length.
+- If a claim in the article is hedged, hedge with it. Use "reportedly", "the piece notes", "according to the report" when the source itself is uncertain.
+- If you are given only a URL and cannot clearly read the page, write a shorter script based strictly on the domain's general topic and the URL slug, and keep all claims generic. Do not invent specifics.
+
 # CITATION HANDLING
 
-When you use a source, weave attribution into natural speech. "A Reuters report this week found..." or "According to new data from Stanford...". Never write "[1]" or "[citation]" or brackets of any kind. Source URLs return separately in metadata.
+When you use a source, weave attribution into natural speech. "The report this week found..." or "According to the article...". Never write "[1]" or "[citation]" or brackets of any kind. The source you cite IS the article you were given — do not fabricate other publications, studies, or experts. Source URLs return separately in metadata.
 
 # OUTPUT FORMAT
 
@@ -189,17 +219,45 @@ Output ONLY the script text. No headings. No preamble. No "Here's your script:".
 
 Just the script, ready to paste into a teleprompter. Pause markers (forward slashes) and line breaks are allowed. Nothing else is.`;
 
-function buildScriptPrompt({ url, duration, tone }) {
+// Clamp injected article text so the prompt stays well inside Perplexity's
+// context window. 15k chars is ~3-4k tokens, more than enough to cover any
+// typical news article while leaving headroom for the framework prompt.
+const MAX_ARTICLE_TEXT_LEN = 15000;
+
+function buildScriptPrompt({ url, duration, tone, articleText }) {
   const target    = WORD_TARGETS[duration]       || WORD_TARGETS[60];
   const beats     = BEAT_ARCHITECTURES[duration] || BEAT_ARCHITECTURES[60];
   const toneDesc  = TONE_PROFILES[tone]          || TONE_PROFILES.conversational;
 
-  const userPrompt = `Read the page at this URL and write a ${duration}-second spoken teleprompter script based on what it says.
+  const hasArticle = typeof articleText === 'string' && articleText.trim().length > 200;
+  const trimmedArticle = hasArticle
+    ? articleText.trim().slice(0, MAX_ARTICLE_TEXT_LEN)
+    : '';
 
+  // When we successfully fetched the article text server-side, hand the model
+  // the raw content and tell it plainly: this is the source of truth. When
+  // we could not fetch (paywall, fetch fail, etc.) fall back to URL-only and
+  // lean harder on the SOURCE FIDELITY rules in the system prompt.
+  const sourceBlock = hasArticle
+    ? `## Source article (authoritative — use ONLY this content)
 URL: ${url}
 
+The following is the full text of the article. Build the script from this and ONLY this. Do not supplement with anything outside these lines.
+
+-----BEGIN ARTICLE-----
+${trimmedArticle}
+-----END ARTICLE-----`
+    : `## Source article
+URL: ${url}
+
+We could not pre-fetch the article text. Read the page at this URL. Work ONLY from what is actually on that page. If you cannot confidently read it, keep every claim generic — do not invent specifics (no scores, names, dates, or quotes that aren't clearly from the source).`;
+
+  const userPrompt = `Write a ${duration}-second spoken teleprompter script based on the source article below.
+
+${sourceBlock}
+
 ## Target length
-Aim for ${target.target} words. Stay inside ${target.min} to ${target.max}. Over-shooting makes the creator talk fast and sound stressed. Under-shooting leaves dead air.
+Aim for ${target.target} words. Stay inside ${target.min} to ${target.max}. Over-shooting makes the creator talk fast and sound stressed. Under-shooting leaves dead air. If the article is thin, ship a tighter script. NEVER pad with invented specifics.
 
 ## Beat architecture for THIS script
 ${beats}
@@ -208,13 +266,18 @@ ${beats}
 ${toneDesc}
 
 ## Before you write — 360 check
-Map the topic briefly in your head. List the angles. Pick the one that would genuinely shock or intrigue the most viewers. Write the hook from THAT angle, not the most obvious one. Write the body first if you're stuck on the hook, then come back.
+Map the story briefly. What is the ONE angle in this article that would genuinely shock or intrigue most viewers? Write the hook from THAT angle, not the most obvious one. Write the body first if you're stuck on the hook.
 
-Follow every rule from your system instructions. Especially: Speed to Value, Single Question, staccato 6-10 words, no em dashes, no "thanks for watching", downward inflections, one core idea.
+Follow every rule from your system instructions. Especially: SOURCE FIDELITY (do not invent), Speed to Value, Single Question Rule, varied rhythm (no walls of 3-word fragments), no em dashes, no "thanks for watching", downward inflections, one core idea.
 
 Output only the script text. Nothing else.`;
 
-  return { systemPrompt: SYSTEM_PROMPT, userPrompt, wordTarget: target };
+  return {
+    systemPrompt: SYSTEM_PROMPT,
+    userPrompt,
+    wordTarget: target,
+    articleTextLen: trimmedArticle.length
+  };
 }
 
 module.exports = {
