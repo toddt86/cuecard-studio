@@ -1,0 +1,14 @@
+# Netlify build config.
+#
+# We keep all site/base/publish settings in the Netlify dashboard so this file
+# only overrides the one thing we need: function bundling.
+#
+# Why external_node_modules: esbuild (the v2 ESM bundler) tries to inline every
+# import into a single output file. `firebase-admin` has dynamic requires and
+# native gRPC bindings that do not survive that process, which crashes v2
+# functions at runtime with "Cannot find module 'firebase-admin'". Listing it
+# as external ships it alongside the bundle instead, matching how v1 CJS
+# functions already behave.
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["firebase-admin"]
