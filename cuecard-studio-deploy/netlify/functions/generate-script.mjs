@@ -196,6 +196,11 @@ export default async (request) => {
   let citations = null;
   let streamError = null;
 
+  // Captured so we can log a safe sample if we never parsed any tokens from
+  // the upstream response. Helps diagnose format mismatches without exposing
+  // any user-generated content (there is none when outputChars stays 0).
+  let rawSample = '';
+
   const downstream = new ReadableStream({
     async start(controller) {
       const reader = upstream.body.getReader();
@@ -206,7 +211,11 @@ export default async (request) => {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          buffer += decoder.decode(value, { stream: true });
+          const decoded = decoder.decode(value, { stream: true });
+          buffer += decoded;
+          if (rawSample.length < 1500) {
+            rawSample = (rawSample + decoded).slice(0, 1500);
+          }
 
           // SSE events are separated by a blank line.
           const events = buffer.split('\n\n');
@@ -259,6 +268,19 @@ export default async (request) => {
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
       } catch {}
+
+      // Diagnostic: if we reached end-of-stream with no content at all,
+      // log what Perplexity actually sent so we can see the format. Safe
+      // because there was no user content to leak — outputChars is 0.
+      if (outputChars === 0) {
+        console.warn('generate-script empty response diagnostic:', JSON.stringify({
+          upstreamStatus: upstream.status,
+          upstreamContentType: upstream.headers.get('content-type'),
+          rawSampleLen: rawSample.length,
+          rawSample: rawSample.slice(0, 1200),
+          trailingBuffer: buffer.slice(0, 300)
+        }));
+      }
 
       // Telemetry. Intentionally omits `url` and any script content.
       const latencyMs = Date.now() - startedAt;
