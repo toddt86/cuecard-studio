@@ -217,8 +217,11 @@ export default async (request) => {
             rawSample = (rawSample + decoded).slice(0, 1500);
           }
 
-          // SSE events are separated by a blank line.
-          const events = buffer.split('\n\n');
+          // SSE events are separated by a blank line. Perplexity uses CRLF
+          // line endings (\r\n\r\n between events), so splitting on bare
+          // '\n\n' misses every boundary and no tokens flow through. Match
+          // both CRLF and LF forms.
+          const events = buffer.split(/\r?\n\r?\n/);
           buffer = events.pop();
 
           for (const rawEvent of events) {
