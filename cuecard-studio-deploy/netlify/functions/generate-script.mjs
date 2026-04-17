@@ -17,7 +17,7 @@ import {
   verifyUser,
   requireProAndConsumeQuota,
   AccessError
-} from './_shared/access.js';
+} from './_shared/access-lite.mjs';
 import { buildScriptPrompt } from './_shared/writing-framework.js';
 
 const PERPLEXITY_URL = 'https://api.perplexity.ai/chat/completions';
