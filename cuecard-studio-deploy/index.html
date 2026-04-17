@@ -872,6 +872,14 @@ html, body {
 @keyframes ai-spin { to { transform: rotate(360deg); } }
 .script-area { position: relative; }
 
+/* Feature flag: when AI_FEATURES_ENABLED is false, the JS adds this class
+   to <body> and it hides the three AI-feature entry buttons. Backend
+   functions and modals remain in the code — only the UI entry is removed.
+   Flip the JS flag to re-enable them. */
+body.ai-features-hidden .research-btn,
+body.ai-features-hidden .trending-btn,
+body.ai-features-hidden .factcheck-btn { display: none !important; }
+
 /* Research & Write button (Perplexity Script from URL) */
 .research-btn {
   background: var(--accent);
@@ -2363,6 +2371,21 @@ const appleProvider = new firebase.auth.OAuthProvider('apple.com');
 appleProvider.addScope('email');
 appleProvider.addScope('name');
 
+// ════════════════ FEATURE FLAGS ════════════════
+// Hide the three new AI features (Script from URL, Trending Topics,
+// Fact Check) while we figure out positioning. Backend Netlify functions
+// are still deployed — they just have no UI entry. Flip this to `true`
+// to turn them back on, no other code changes needed.
+const AI_FEATURES_ENABLED = false;
+
+// Apply the hide class as early as possible so the buttons never flash
+// on first paint. document.body isn't defined yet during inline script
+// evaluation in <head>, but this file's main script runs at end-of-body,
+// so document.body is ready here.
+if (!AI_FEATURES_ENABLED && document.body) {
+  document.body.classList.add('ai-features-hidden');
+}
+
 // ════════════════ AUTH ════════════════
 let currentUser = null;
 let isPro = false;
@@ -3778,6 +3801,7 @@ var researchState = {
 var lastGeneratedScript = { content: '', sourceUrl: '' };
 
 function openResearchModal() {
+  if (!AI_FEATURES_ENABLED) return;
   if (!currentUser || !isPro) { showUpgradeModal(); return; }
   document.getElementById('researchError').classList.remove('active');
   document.getElementById('researchUrl').classList.remove('invalid');
@@ -4069,6 +4093,7 @@ var trendingState = {
 };
 
 function openTrendingModal() {
+  if (!AI_FEATURES_ENABLED) return;
   if (!currentUser || !isPro) { showUpgradeModal(); return; }
   document.getElementById('trendingError').classList.remove('active');
   var modal = document.getElementById('trendingModal');
@@ -4296,6 +4321,7 @@ function fcFindSpan(script, claim) {
 }
 
 async function runFactCheck() {
+  if (!AI_FEATURES_ENABLED) return;
   if (factCheckState.loading) return;
   if (!currentUser) { showToast('Sign in to use Fact Check.'); return; }
 
