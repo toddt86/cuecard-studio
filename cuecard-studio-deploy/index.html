@@ -872,6 +872,264 @@ html, body {
 @keyframes ai-spin { to { transform: rotate(360deg); } }
 .script-area { position: relative; }
 
+/* Research & Write button (Perplexity Script from URL) */
+.research-btn {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 8px var(--accent-dim);
+}
+.research-btn:hover { filter: brightness(1.1); box-shadow: 0 3px 12px var(--accent-glow); }
+.research-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+/* Sources pill in script meta */
+.sources-pill {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sources-pill:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Research modal (overlay + box) */
+.research-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 2500;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+}
+.research-overlay.active { display: flex; }
+.research-box {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 520px;
+  padding: 28px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  position: relative;
+}
+.research-box h2 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.research-box .research-sub {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.research-field { margin-bottom: 16px; }
+.research-field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.research-field input[type="url"] {
+  width: 100%;
+  padding: 11px 14px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+.research-field input[type="url"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+.research-field input[type="url"].invalid {
+  border-color: var(--danger);
+}
+.research-segments {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.research-segment {
+  flex: 1 1 0;
+  min-width: 70px;
+  padding: 9px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+.research-segment:hover { border-color: var(--accent); color: var(--accent); }
+.research-segment.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.research-error {
+  display: none;
+  background: rgba(255,82,82,0.08);
+  border: 1px solid rgba(255,82,82,0.35);
+  color: var(--danger);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 14px;
+  line-height: 1.4;
+}
+.research-error.active { display: block; }
+.research-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.research-cancel {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 11px 18px;
+  border-radius: 8px;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.research-cancel:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+.research-generate {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+  padding: 11px 22px;
+  border-radius: 8px;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  min-width: 130px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.research-generate:hover:not([disabled]) { filter: brightness(1.1); }
+.research-generate[disabled] { opacity: 0.7; cursor: not-allowed; }
+.research-generate .mini-spinner {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: ai-spin 0.8s linear infinite;
+}
+
+/* Citations modal */
+.citations-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 2500;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.citations-overlay.active { display: flex; }
+.citations-box {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 80vh;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.citations-box h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.citations-list {
+  flex: 1;
+  overflow-y: auto;
+  margin: 0 -8px;
+  padding: 0 8px;
+}
+.citations-list a {
+  display: block;
+  padding: 10px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 13px;
+  margin-bottom: 8px;
+  word-break: break-all;
+  transition: all 0.15s;
+  line-height: 1.4;
+}
+.citations-list a:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.citations-close {
+  margin-top: 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  align-self: flex-end;
+  transition: all 0.15s;
+}
+.citations-close:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+
 /* Controls */
 .control-group { display: flex; flex-direction: column; gap: 8px; }
 
@@ -1306,6 +1564,9 @@ html, body {
       <div class="script-header">
         <label>Your Script</label>
         <div class="ai-tools-wrap">
+          <button type="button" class="research-btn" id="researchBtn" onclick="openResearchModal()" title="Research a URL and write a teleprompter script">
+            &#9733; Research &amp; Write
+          </button>
           <button type="button" class="ai-undo-btn" id="aiUndoBtn" style="display:none;" onclick="aiUndo()">Undo</button>
           <button type="button" class="ai-tools-btn" id="aiToolsBtn" onclick="toggleAiMenu(event)">
             &#10024; AI Tools <span class="chev">&#9660;</span>
@@ -1343,6 +1604,7 @@ html, body {
       <div class="script-meta">
         <span id="wordCount">0 words</span>
         <span id="readTime">~0 min read</span>
+        <button type="button" class="sources-pill" id="sourcesPill" style="display:none;" onclick="openCitationsModal()">&#128218; <span id="sourcesPillLabel">0 sources</span></button>
         <button type="button" class="import-btn" onclick="triggerFileImport()">&#128206; Import File</button>
       </div>
     </div>
@@ -1544,6 +1806,55 @@ html, body {
     </div>
     <div style="height:16px;"></div>
     <button class="upgrade-close" onclick="closeUpgradeModal()">Maybe later</button>
+  </div>
+</div>
+
+<!-- ════════ RESEARCH & WRITE MODAL ════════ -->
+<div class="research-overlay" id="researchModal">
+  <div class="research-box">
+    <h2>Research &amp; Write Script</h2>
+    <p class="research-sub">Paste a URL. Pick a length and tone. We'll research the page and write a teleprompter script that sounds natural read aloud.</p>
+
+    <div class="research-field">
+      <label for="researchUrl">Source URL</label>
+      <input type="url" id="researchUrl" placeholder="https://example.com/article" autocomplete="off" spellcheck="false">
+    </div>
+
+    <div class="research-field">
+      <label>Length</label>
+      <div class="research-segments" id="researchDurationSegments">
+        <button type="button" class="research-segment" data-duration="30">30 sec</button>
+        <button type="button" class="research-segment active" data-duration="60">60 sec</button>
+        <button type="button" class="research-segment" data-duration="90">90 sec</button>
+        <button type="button" class="research-segment" data-duration="120">2 min</button>
+      </div>
+    </div>
+
+    <div class="research-field">
+      <label>Tone</label>
+      <div class="research-segments" id="researchToneSegments">
+        <button type="button" class="research-segment active" data-tone="conversational">Conversational</button>
+        <button type="button" class="research-segment" data-tone="authoritative">Authoritative</button>
+        <button type="button" class="research-segment" data-tone="energetic">Energetic</button>
+        <button type="button" class="research-segment" data-tone="documentary">Documentary</button>
+      </div>
+    </div>
+
+    <div class="research-error" id="researchError"></div>
+
+    <div class="research-actions">
+      <button type="button" class="research-cancel" id="researchCancelBtn" onclick="closeResearchModal()">Cancel</button>
+      <button type="button" class="research-generate" id="researchGenerateBtn" onclick="runGenerateScript()">Generate script</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ CITATIONS MODAL ════════ -->
+<div class="citations-overlay" id="citationsModal">
+  <div class="citations-box">
+    <h2>Sources</h2>
+    <div class="citations-list" id="citationsList"></div>
+    <button type="button" class="citations-close" onclick="closeCitationsModal()">Close</button>
   </div>
 </div>
 
@@ -3021,6 +3332,373 @@ async function runAiAction(action) {
     setAiLoading(false);
   }
 }
+
+/* ===== Research & Write (Script from URL via Perplexity) ===== */
+var researchState = {
+  duration: 60,
+  tone: 'conversational',
+  streaming: false,
+  abortCtrl: null,
+  citations: []
+};
+
+function openResearchModal() {
+  if (!currentUser || !isPro) { showUpgradeModal(); return; }
+  document.getElementById('researchError').classList.remove('active');
+  document.getElementById('researchUrl').classList.remove('invalid');
+  var modal = document.getElementById('researchModal');
+  modal.classList.add('active');
+  setTimeout(function() {
+    var urlInput = document.getElementById('researchUrl');
+    if (urlInput) urlInput.focus();
+  }, 50);
+}
+
+function closeResearchModal() {
+  if (researchState.streaming) {
+    stopGeneration();
+    return;
+  }
+  document.getElementById('researchModal').classList.remove('active');
+}
+
+function setResearchDuration(d) {
+  researchState.duration = d;
+  var segs = document.querySelectorAll('#researchDurationSegments .research-segment');
+  segs.forEach(function(s) {
+    s.classList.toggle('active', Number(s.getAttribute('data-duration')) === d);
+  });
+}
+
+function setResearchTone(t) {
+  researchState.tone = t;
+  var segs = document.querySelectorAll('#researchToneSegments .research-segment');
+  segs.forEach(function(s) {
+    s.classList.toggle('active', s.getAttribute('data-tone') === t);
+  });
+}
+
+function showResearchError(msg) {
+  var el = document.getElementById('researchError');
+  el.textContent = msg;
+  el.classList.add('active');
+}
+
+function hideResearchError() {
+  document.getElementById('researchError').classList.remove('active');
+}
+
+function isValidResearchUrl(str) {
+  if (!str) return false;
+  try {
+    var u = new URL(str);
+    return (u.protocol === 'http:' || u.protocol === 'https:') && u.hostname.indexOf('.') !== -1;
+  } catch (e) {
+    return false;
+  }
+}
+
+function setGeneratingUI(on) {
+  var btn = document.getElementById('researchGenerateBtn');
+  var cancel = document.getElementById('researchCancelBtn');
+  var urlInput = document.getElementById('researchUrl');
+  researchState.streaming = on;
+  if (on) {
+    btn.innerHTML = '<span class="mini-spinner"></span>Stop';
+    btn.onclick = stopGeneration;
+    cancel.disabled = true;
+    cancel.style.opacity = '0.4';
+    urlInput.disabled = true;
+    document.querySelectorAll('#researchDurationSegments .research-segment, #researchToneSegments .research-segment').forEach(function(s) {
+      s.disabled = true;
+      s.style.opacity = '0.5';
+      s.style.pointerEvents = 'none';
+    });
+  } else {
+    btn.textContent = 'Generate script';
+    btn.onclick = runGenerateScript;
+    btn.disabled = false;
+    cancel.disabled = false;
+    cancel.style.opacity = '';
+    urlInput.disabled = false;
+    document.querySelectorAll('#researchDurationSegments .research-segment, #researchToneSegments .research-segment').forEach(function(s) {
+      s.disabled = false;
+      s.style.opacity = '';
+      s.style.pointerEvents = '';
+    });
+  }
+}
+
+function stopGeneration() {
+  if (researchState.abortCtrl) {
+    try { researchState.abortCtrl.abort(); } catch (e) {}
+  }
+  researchState.streaming = false;
+  setGeneratingUI(false);
+  document.getElementById('researchModal').classList.remove('active');
+  showToast('Stopped. Partial script kept in the editor.');
+}
+
+async function runGenerateScript() {
+  if (researchState.streaming) return;
+  if (!currentUser || !isPro) { showUpgradeModal(); return; }
+
+  var urlInput = document.getElementById('researchUrl');
+  var url = (urlInput.value || '').trim();
+  hideResearchError();
+  urlInput.classList.remove('invalid');
+
+  if (!isValidResearchUrl(url)) {
+    urlInput.classList.add('invalid');
+    showResearchError('That does not look like a valid URL. Include http:// or https://.');
+    urlInput.focus();
+    return;
+  }
+
+  var ta = document.getElementById('scriptInput');
+  var hadContent = ta.value.trim().length > 0;
+  if (hadContent) {
+    if (!confirm('This will replace your current script. Continue?')) return;
+    pushAiUndo(ta.value);
+  }
+
+  setGeneratingUI(true);
+  ta.value = '';
+  ta.dispatchEvent(new Event('input'));
+
+  // Reset citations
+  researchState.citations = [];
+  var pill = document.getElementById('sourcesPill');
+  pill.style.display = 'none';
+
+  var idToken;
+  try {
+    idToken = await currentUser.getIdToken();
+  } catch (e) {
+    setGeneratingUI(false);
+    showResearchError('Could not verify your sign-in. Try signing out and back in.');
+    return;
+  }
+
+  var ctrl = new AbortController();
+  researchState.abortCtrl = ctrl;
+
+  var finishedOk = false;
+
+  try {
+    var res = await fetch('/.netlify/functions/generate-script', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        idToken: idToken,
+        url: url,
+        duration: researchState.duration,
+        tone: researchState.tone
+      }),
+      signal: ctrl.signal
+    });
+
+    if (!res.ok) {
+      var errBody;
+      try { errBody = await res.json(); } catch (e) { errBody = { error: 'Request failed' }; }
+
+      if (res.status === 429) {
+        showToast(errBody.error || "You've hit today's generation limit. Resets at midnight UTC.");
+        setGeneratingUI(false);
+        document.getElementById('researchModal').classList.remove('active');
+        return;
+      }
+      if (res.status === 403) {
+        setGeneratingUI(false);
+        document.getElementById('researchModal').classList.remove('active');
+        showUpgradeModal();
+        return;
+      }
+      if (res.status === 401) {
+        showResearchError('Your sign-in expired. Sign out and back in, then try again.');
+        setGeneratingUI(false);
+        return;
+      }
+      if (res.status === 400) {
+        showResearchError(errBody.error || 'Invalid request.');
+        setGeneratingUI(false);
+        return;
+      }
+      if (res.status === 502) {
+        showResearchError(errBody.error || 'Our research service is having a moment. Try again in a minute.');
+        setGeneratingUI(false);
+        return;
+      }
+      showResearchError(errBody.error || 'Could not generate. Try again.');
+      setGeneratingUI(false);
+      return;
+    }
+
+    if (!res.body) {
+      showResearchError('No response stream. Try again.');
+      setGeneratingUI(false);
+      return;
+    }
+
+    // Close modal now that streaming has started. Tokens flow into the
+    // textarea behind the modal otherwise (looks laggy to the user).
+    document.getElementById('researchModal').classList.remove('active');
+
+    var reader = res.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+    var streamError = null;
+
+    while (true) {
+      var chunk = await reader.read();
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, { stream: true });
+
+      var events = buffer.split('\n\n');
+      buffer = events.pop();
+
+      for (var i = 0; i < events.length; i++) {
+        var lines = events[i].split('\n');
+        for (var j = 0; j < lines.length; j++) {
+          var line = lines[j].trim();
+          if (!line || !line.startsWith('data:')) continue;
+          var payload = line.slice(5).trim();
+          if (payload === '[DONE]') continue;
+
+          var evt;
+          try { evt = JSON.parse(payload); } catch (e) { continue; }
+
+          if (evt.type === 'token' && typeof evt.content === 'string') {
+            ta.value += evt.content;
+            // Keep the caret at the end so the user sees tokens land.
+            ta.scrollTop = ta.scrollHeight;
+            ta.dispatchEvent(new Event('input'));
+          } else if (evt.type === 'citations' && Array.isArray(evt.citations)) {
+            researchState.citations = evt.citations;
+          } else if (evt.type === 'error') {
+            streamError = evt.error || 'Stream interrupted.';
+          }
+        }
+      }
+    }
+
+    finishedOk = !streamError;
+
+    if (streamError) {
+      showToast(streamError);
+    } else {
+      // Render the sources pill if we got any.
+      if (researchState.citations.length) {
+        var pillLabel = document.getElementById('sourcesPillLabel');
+        pillLabel.textContent = researchState.citations.length + ' source' + (researchState.citations.length === 1 ? '' : 's');
+        pill.style.display = 'inline-flex';
+      }
+      // Warn if word count is outside the target range.
+      var WORD_RANGES = { 30: [65, 85], 60: [135, 165], 90: [210, 240], 120: [280, 320] };
+      var range = WORD_RANGES[researchState.duration] || [135, 165];
+      var wc = ta.value.trim().split(/\s+/).filter(Boolean).length;
+      if (wc < range[0]) {
+        showToast('Script generated (' + wc + ' words, shorter than target ' + range[0] + '-' + range[1] + ').');
+      } else if (wc > range[1]) {
+        showToast('Script generated (' + wc + ' words, longer than target ' + range[0] + '-' + range[1] + ').');
+      } else {
+        showToast('Script generated (' + wc + ' words). Ready to prompt.');
+      }
+    }
+  } catch (err) {
+    if (err && err.name === 'AbortError') {
+      // User pressed Stop. Handled inside stopGeneration().
+      return;
+    }
+    console.error('Research generate error:', err);
+    showToast('Connection issue. Try again?');
+    // If modal is still open, show the inline error too.
+    showResearchError('Connection issue. Try again?');
+  } finally {
+    researchState.abortCtrl = null;
+    setGeneratingUI(false);
+  }
+}
+
+function openCitationsModal() {
+  var list = document.getElementById('citationsList');
+  list.innerHTML = '';
+  if (!researchState.citations.length) {
+    var empty = document.createElement('div');
+    empty.style.cssText = 'color:var(--text-dim);font-size:13px;padding:12px;';
+    empty.textContent = 'No sources available.';
+    list.appendChild(empty);
+  } else {
+    researchState.citations.forEach(function(u, idx) {
+      var a = document.createElement('a');
+      a.href = u;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = (idx + 1) + '. ' + u;
+      list.appendChild(a);
+    });
+  }
+  document.getElementById('citationsModal').classList.add('active');
+}
+
+function closeCitationsModal() {
+  document.getElementById('citationsModal').classList.remove('active');
+}
+
+// Wire segment clicks once the DOM is ready.
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('#researchDurationSegments .research-segment').forEach(function(s) {
+    s.addEventListener('click', function() {
+      if (researchState.streaming) return;
+      setResearchDuration(Number(s.getAttribute('data-duration')));
+    });
+  });
+  document.querySelectorAll('#researchToneSegments .research-segment').forEach(function(s) {
+    s.addEventListener('click', function() {
+      if (researchState.streaming) return;
+      setResearchTone(s.getAttribute('data-tone'));
+    });
+  });
+
+  // Click outside to close (only when not streaming).
+  var researchOverlay = document.getElementById('researchModal');
+  if (researchOverlay) {
+    researchOverlay.addEventListener('click', function(e) {
+      if (e.target === researchOverlay && !researchState.streaming) {
+        closeResearchModal();
+      }
+    });
+  }
+  var citationsOverlay = document.getElementById('citationsModal');
+  if (citationsOverlay) {
+    citationsOverlay.addEventListener('click', function(e) {
+      if (e.target === citationsOverlay) closeCitationsModal();
+    });
+  }
+
+  // Enter in URL field triggers generate.
+  var urlInput = document.getElementById('researchUrl');
+  if (urlInput) {
+    urlInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        runGenerateScript();
+      }
+    });
+  }
+
+  // Escape closes modals (if not streaming).
+  document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    var r = document.getElementById('researchModal');
+    var c = document.getElementById('citationsModal');
+    if (c && c.classList.contains('active')) {
+      closeCitationsModal();
+    } else if (r && r.classList.contains('active') && !researchState.streaming) {
+      closeResearchModal();
+    }
+  });
+});
 
 function splitIntoCueCards(text) { return text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 0); }
 
