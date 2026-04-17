@@ -1284,6 +1284,210 @@ html, body {
 }
 .citations-close:hover { border-color: var(--text-secondary); color: var(--text-primary); }
 
+/* Fact Check button (sits next to Trending). Outline style, same sizing. */
+.factcheck-btn {
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.factcheck-btn:hover { background: var(--accent-dim); }
+.factcheck-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.factcheck-btn .fc-btn-spinner {
+  width: 12px; height: 12px;
+  border: 2px solid var(--accent-dim);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: ai-spin 0.8s linear infinite;
+}
+
+/* Fact Check results modal */
+.factcheck-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 2500;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+}
+.factcheck-overlay.active { display: flex; }
+.factcheck-box {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 720px;
+  max-height: 88vh;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.factcheck-box h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.factcheck-sub {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.factcheck-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.fc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.fc-pill-verified     { background: rgba(16,185,129,0.15); color: #10b981; }
+.fc-pill-questionable { background: rgba(234,179,8,0.15);  color: #eab308; }
+.fc-pill-contradicted { background: rgba(239,68,68,0.15);  color: #ef4444; }
+.fc-pill-none         { background: var(--bg-tertiary);    color: var(--text-dim); }
+
+.factcheck-scroll {
+  flex: 1;
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 0 4px 4px;
+}
+.factcheck-script {
+  padding: 14px 16px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin-bottom: 16px;
+}
+.fc-highlight {
+  padding: 1px 3px;
+  border-radius: 4px;
+  border-bottom: 2px solid;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+.fc-highlight:hover { filter: brightness(1.25); }
+.fc-highlight.fc-verified     { background: rgba(16,185,129,0.18); border-color: #10b981; }
+.fc-highlight.fc-questionable { background: rgba(234,179,8,0.20);  border-color: #eab308; }
+.fc-highlight.fc-contradicted { background: rgba(239,68,68,0.18);  border-color: #ef4444; }
+
+.factcheck-claims-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  margin: 8px 0 10px;
+}
+.fc-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  transition: box-shadow 0.2s;
+}
+.fc-card.fc-card-verified     { border-left-color: #10b981; }
+.fc-card.fc-card-questionable { border-left-color: #eab308; }
+.fc-card.fc-card-contradicted { border-left-color: #ef4444; }
+.fc-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.fc-card-claim {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+.fc-card-reason {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+.fc-card-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.fc-card-sources a {
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+.fc-card-sources a:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.factcheck-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 13px;
+  background: var(--bg-primary);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+}
+.factcheck-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+  gap: 10px;
+}
+.factcheck-close {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.factcheck-close:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
 /* Controls */
 .control-group { display: flex; flex-direction: column; gap: 8px; }
 
@@ -1724,6 +1928,9 @@ html, body {
           <button type="button" class="trending-btn" id="trendingBtn" onclick="openTrendingModal()" title="Find what's trending this week in your niche">
             &#128293; Trending
           </button>
+          <button type="button" class="factcheck-btn" id="factCheckBtn" onclick="runFactCheck()" title="Check factual claims in your script against current sources">
+            &#10003; Fact Check
+          </button>
           <button type="button" class="ai-undo-btn" id="aiUndoBtn" style="display:none;" onclick="aiUndo()">Undo</button>
           <button type="button" class="ai-tools-btn" id="aiToolsBtn" onclick="toggleAiMenu(event)">
             &#10024; AI Tools <span class="chev">&#9660;</span>
@@ -2048,6 +2255,23 @@ html, body {
     <div class="trending-results-actions">
       <button type="button" class="trending-results-refresh" onclick="reopenTrendingNicheModal()">Change niche</button>
       <button type="button" class="trending-results-close" onclick="closeTrendingResults()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ FACT CHECK MODAL (annotated script + per-claim cards) ════════ -->
+<div class="factcheck-overlay" id="factCheckModal">
+  <div class="factcheck-box">
+    <h2>Fact Check</h2>
+    <div class="factcheck-sub" id="factCheckSub">Claims are highlighted in the script. Green means verified, yellow means needs attention, red means contradicted by sources.</div>
+    <div class="factcheck-summary" id="factCheckSummary"></div>
+    <div class="factcheck-scroll">
+      <div class="factcheck-script" id="factCheckScript"></div>
+      <div class="factcheck-claims-title" id="factCheckClaimsTitle">Claims</div>
+      <div class="factcheck-claims" id="factCheckClaims"></div>
+    </div>
+    <div class="factcheck-actions">
+      <button type="button" class="factcheck-close" onclick="closeFactCheckModal()">Close</button>
     </div>
   </div>
 </div>
@@ -4031,6 +4255,202 @@ function reopenTrendingNicheModal() {
   if (input) input.value = trendingState.lastNiche || '';
 }
 
+// ════════════════ FACT CHECK ════════════════
+var factCheckState = { loading: false, script: '', claims: [] };
+
+function fcEscapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Find a claim's offset in the script. Matches the backend's fallback so
+// claims the server couldn't match never reach us, but we run the same
+// search here too to rebuild offsets locally.
+function fcFindSpan(script, claim) {
+  if (!claim) return null;
+  var idx = script.indexOf(claim);
+  if (idx !== -1) return { start: idx, end: idx + claim.length };
+  var sLow = script.toLowerCase();
+  var cLow = claim.toLowerCase();
+  idx = sLow.indexOf(cLow);
+  if (idx !== -1) return { start: idx, end: idx + claim.length };
+  return null;
+}
+
+async function runFactCheck() {
+  if (factCheckState.loading) return;
+  if (!currentUser) { showToast('Sign in to use Fact Check.'); return; }
+
+  var script = (document.getElementById('scriptInput').value || '').trim();
+  if (script.length < 30) {
+    showToast('Paste or generate a script first.');
+    return;
+  }
+  if (script.length > 6000) {
+    showToast('Script is too long. Trim it under 6000 characters.');
+    return;
+  }
+
+  var btn = document.getElementById('factCheckBtn');
+  var originalHtml = btn.innerHTML;
+  factCheckState.loading = true;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="fc-btn-spinner"></span> Checking...';
+
+  try {
+    var idToken = await currentUser.getIdToken();
+    var res = await fetch('/.netlify/functions/fact-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken: idToken, script: script })
+    });
+
+    var data;
+    try { data = await res.json(); } catch (_) { data = {}; }
+
+    if (!res.ok) {
+      showToast(data.error || 'Fact check failed. Try again.');
+      return;
+    }
+
+    factCheckState.script = script;
+    factCheckState.claims = Array.isArray(data.claims) ? data.claims : [];
+    renderFactCheckResults();
+    document.getElementById('factCheckModal').classList.add('active');
+  } catch (err) {
+    console.error('factCheck error:', err);
+    showToast('Network issue. Try again.');
+  } finally {
+    factCheckState.loading = false;
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
+}
+
+function renderFactCheckResults() {
+  var script = factCheckState.script;
+  var claims = factCheckState.claims;
+
+  // Resolve each claim's offset + drop overlaps, earliest-wins.
+  var located = [];
+  for (var i = 0; i < claims.length; i++) {
+    var c = claims[i];
+    var span = fcFindSpan(script, c.claim);
+    if (!span) continue;
+    located.push({
+      claim: script.slice(span.start, span.end),
+      status: c.status,
+      reason: c.reason || '',
+      sources: Array.isArray(c.sources) ? c.sources : [],
+      start: span.start,
+      end: span.end
+    });
+  }
+  located.sort(function(a, b) { return a.start - b.start; });
+  var nonOverlap = [];
+  var lastEnd = -1;
+  for (var j = 0; j < located.length; j++) {
+    if (located[j].start >= lastEnd) {
+      nonOverlap.push(located[j]);
+      lastEnd = located[j].end;
+    }
+  }
+
+  var verified     = nonOverlap.filter(function(c) { return c.status === 'verified'; }).length;
+  var questionable = nonOverlap.filter(function(c) { return c.status === 'questionable'; }).length;
+  var contradicted = nonOverlap.filter(function(c) { return c.status === 'contradicted'; }).length;
+
+  // Summary pills
+  var summaryEl = document.getElementById('factCheckSummary');
+  if (nonOverlap.length === 0) {
+    summaryEl.innerHTML = '<span class="fc-pill fc-pill-none">No factual claims detected in this script.</span>';
+  } else {
+    var pills = [];
+    if (verified)     pills.push('<span class="fc-pill fc-pill-verified">&#10003; ' + verified + ' verified</span>');
+    if (questionable) pills.push('<span class="fc-pill fc-pill-questionable">&#9888; ' + questionable + ' questionable</span>');
+    if (contradicted) pills.push('<span class="fc-pill fc-pill-contradicted">&#10007; ' + contradicted + ' contradicted</span>');
+    summaryEl.innerHTML = pills.join(' ');
+  }
+
+  // Annotated script
+  var scriptEl = document.getElementById('factCheckScript');
+  if (nonOverlap.length === 0) {
+    // Nothing to highlight. Just show the plain script.
+    scriptEl.innerHTML = fcEscapeHtml(script);
+  } else {
+    var html = '';
+    var cursor = 0;
+    for (var k = 0; k < nonOverlap.length; k++) {
+      var cc = nonOverlap[k];
+      if (cursor < cc.start) {
+        html += fcEscapeHtml(script.slice(cursor, cc.start));
+      }
+      html += '<span class="fc-highlight fc-' + cc.status +
+              '" data-fc-idx="' + k + '"' +
+              ' onclick="scrollToFactCard(' + k + ')"' +
+              ' title="Click to see details">' +
+              fcEscapeHtml(script.slice(cc.start, cc.end)) +
+              '</span>';
+      cursor = cc.end;
+    }
+    if (cursor < script.length) {
+      html += fcEscapeHtml(script.slice(cursor));
+    }
+    scriptEl.innerHTML = html;
+  }
+
+  // Claim cards
+  var titleEl = document.getElementById('factCheckClaimsTitle');
+  var cardsEl = document.getElementById('factCheckClaims');
+  if (nonOverlap.length === 0) {
+    titleEl.style.display = 'none';
+    cardsEl.innerHTML = '<div class="factcheck-empty">Your script reads as opinion or general commentary without specific verifiable claims. That\'s fine! Nothing to cite.</div>';
+  } else {
+    titleEl.style.display = '';
+    var cardsHtml = '';
+    for (var m = 0; m < nonOverlap.length; m++) {
+      var cd = nonOverlap[m];
+      var badgeText = cd.status === 'verified' ? '&#10003; Verified'
+                    : cd.status === 'contradicted' ? '&#10007; Contradicted'
+                    : '&#9888; Questionable';
+      var sourcesHtml = '';
+      for (var s = 0; s < cd.sources.length; s++) {
+        var url = cd.sources[s];
+        var host;
+        try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (_) { host = url; }
+        sourcesHtml += '<a href="' + fcEscapeHtml(url) + '" target="_blank" rel="noopener noreferrer">' +
+                       fcEscapeHtml(host) + '</a>';
+      }
+      cardsHtml +=
+        '<div class="fc-card fc-card-' + cd.status + '" id="fc-card-' + m + '">' +
+          '<div class="fc-card-header">' +
+            '<span class="fc-pill fc-pill-' + cd.status + '">' + badgeText + '</span>' +
+          '</div>' +
+          '<div class="fc-card-claim">&ldquo;' + fcEscapeHtml(cd.claim) + '&rdquo;</div>' +
+          '<div class="fc-card-reason">' + fcEscapeHtml(cd.reason) + '</div>' +
+          '<div class="fc-card-sources">' + sourcesHtml + '</div>' +
+        '</div>';
+    }
+    cardsEl.innerHTML = cardsHtml;
+  }
+}
+
+function scrollToFactCard(idx) {
+  var card = document.getElementById('fc-card-' + idx);
+  if (!card) return;
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  card.style.boxShadow = '0 0 0 2px var(--accent)';
+  setTimeout(function() { card.style.boxShadow = ''; }, 1200);
+}
+
+function closeFactCheckModal() {
+  document.getElementById('factCheckModal').classList.remove('active');
+}
+
 function openCitationsModal() {
   var list = document.getElementById('citationsList');
   list.innerHTML = '';
@@ -4131,15 +4551,24 @@ document.addEventListener('DOMContentLoaded', function() {
       if (e.target === trendingResultsOverlay) closeTrendingResults();
     });
   }
+  var factCheckOverlay = document.getElementById('factCheckModal');
+  if (factCheckOverlay) {
+    factCheckOverlay.addEventListener('click', function(e) {
+      if (e.target === factCheckOverlay) closeFactCheckModal();
+    });
+  }
 
-  // Escape closes modals (if not streaming).
+  // Escape closes modals (if not streaming). Topmost closes first.
   document.addEventListener('keydown', function(e) {
     if (e.key !== 'Escape') return;
     var r = document.getElementById('researchModal');
     var c = document.getElementById('citationsModal');
     var tm = document.getElementById('trendingModal');
     var tr = document.getElementById('trendingResultsModal');
-    if (tr && tr.classList.contains('active')) {
+    var fc = document.getElementById('factCheckModal');
+    if (fc && fc.classList.contains('active')) {
+      closeFactCheckModal();
+    } else if (tr && tr.classList.contains('active')) {
       closeTrendingResults();
     } else if (tm && tm.classList.contains('active') && !trendingState.loading) {
       closeTrendingModal();
