@@ -30,7 +30,12 @@ const MODEL = 'sonar';
 const MIN_SCRIPT_LEN = 30;
 const MAX_SCRIPT_LEN = 6000;
 const MAX_CLAIMS = 15;
-const VALID_STATUSES = new Set(['verified', 'questionable', 'contradicted']);
+// Four tiers. "unverified" is deliberately neutral — it means "we couldn't
+// independently confirm this, but nothing contradicts it either." Without
+// this tier the model defaulted to "questionable" for any fresh claim that
+// hadn't been broadly indexed yet, which made AP-sourced scripts look like
+// they were full of errors.
+const VALID_STATUSES = new Set(['verified', 'unverified', 'questionable', 'contradicted']);
 
 // sonar pricing: $1 per M input tokens, $1 per M output tokens.
 function estimateCost(inputTokens, outputTokens) {
@@ -46,7 +51,16 @@ function jsonResponse(status, payload) {
   });
 }
 
-function buildSystemPrompt() {
+function buildSystemPrompt(sourceUrl) {
+  const sourceBlock = sourceUrl
+    ? `
+
+PRIMARY SOURCE CONTEXT:
+The script was written from this source article: ${sourceUrl}
+
+Treat that URL as a primary source. If the article itself states a claim from the script, the claim is "verified" — the article is evidence even if no other outlet has picked it up yet. Only mark something "questionable" or "contradicted" if you find active evidence against it, or if the script drifted from what the source article actually said (wrong number, wrong attribution, added detail not in the article, etc.).`
+    : '';
+
   return `You are a fact-checker for short-form video scripts. You identify specific factual claims and verify each one using current web search. You return strict JSON.
 
 A factual claim is a specific, verifiable statement about the world: a number, a date, a named event, a company action, a scientific finding, a quoted statistic, an attribution, a proper noun doing something. Opinions, subjective framing, calls to action, hypotheticals, rhetorical questions, and generic truisms ("AI is changing everything", "focus is your superpower") are NOT claims. Skip them.
@@ -54,20 +68,21 @@ A factual claim is a specific, verifiable statement about the world: a number, a
 For each claim return an object with this EXACT shape:
 {
   "claim": "a verbatim substring copied character-for-character from the script — the client will search the script for this exact string to highlight it, so apostrophe style, casing, punctuation, and wording must match the script EXACTLY",
-  "status": "verified" | "questionable" | "contradicted",
+  "status": "verified" | "unverified" | "questionable" | "contradicted",
   "reason": "one sentence explaining your verdict, naming the source generically ('according to Reuters and AP') rather than using brackets like [1]",
   "sources": ["https://...", "https://..."]
 }
 
-Status definitions:
-- "verified": current credible sources confirm the claim as stated in the script.
-- "questionable": the claim is partly right, outdated, missing important context, or only weakly sourced.
-- "contradicted": credible current sources directly contradict the claim.
+Status definitions — read these carefully, they are different:
+- "verified": current credible sources confirm the claim as stated in the script. Reach for this when sources exist.
+- "unverified": you could not find active confirmation, BUT you also could not find anything that contradicts it. This is a NEUTRAL status, not a warning. Use this for fresh news that may not be indexed yet, niche facts, forward-looking announcements, or anything where the evidence is simply absent. Do NOT escalate an unverified claim to "questionable" just because confirmation is thin.
+- "questionable": you found evidence that the claim is partly right but missing important context, outdated, or only weakly sourced. Something is actually off. Only use this when you have a specific concern, not a general lack of evidence.
+- "contradicted": credible current sources directly contradict the claim.${sourceBlock}
 
 Rules:
 - Output ONLY a JSON array. No markdown. No code fences. No preamble. No closing remarks.
 - Start with [ and end with ].
-- Each claim has 1 to 3 source URLs. Every URL must be real and reachable.
+- Each claim has 1 to 3 source URLs. Every URL must be real and reachable. "unverified" claims still need at least 1 source URL — cite the closest-related page you found while searching, or the source article URL if one was provided.
 - "claim" MUST be a verbatim substring of the input script. Do not paraphrase. Do not clean up. Copy it character-for-character including punctuation.
 - Find at most ${MAX_CLAIMS} claims. Return the most important ones. Do not pad.
 - If the script has no factual claims, return [].
@@ -75,8 +90,15 @@ Rules:
 - Do not include brackets like [1] or [citation] in the reason field.`;
 }
 
-function buildUserPrompt(script) {
-  return `Fact-check this short-form video script. Identify each specific factual claim, verify it with current web search, and return a JSON array.
+function buildUserPrompt(script, sourceUrl) {
+  const sourceNote = sourceUrl
+    ? `
+
+SOURCE ARTICLE: ${sourceUrl}
+The script was written from that article. Treat it as a primary source when judging the claims below.`
+    : '';
+
+  return `Fact-check this short-form video script. Identify each specific factual claim, verify it with current web search, and return a JSON array.${sourceNote}
 
 SCRIPT (between the triple quotes):
 """
@@ -242,7 +264,7 @@ export default async (request) => {
     return jsonResponse(400, { error: 'Invalid JSON body' });
   }
 
-  const { idToken, script: rawScript } = body || {};
+  const { idToken, script: rawScript, sourceUrl: rawSourceUrl } = body || {};
 
   if (!idToken) return jsonResponse(400, { error: 'Missing idToken' });
 
@@ -255,6 +277,16 @@ export default async (request) => {
   }
   if (script.length > MAX_SCRIPT_LEN) {
     return jsonResponse(400, { error: `Script is too long. Trim it under ${MAX_SCRIPT_LEN} characters.` });
+  }
+
+  // Optional: the URL the script was written from (when it came from
+  // Feature 1 and hasn't been edited since). Lets the model treat that
+  // page as a primary source rather than demanding independent
+  // corroboration for every claim.
+  let sourceUrl = null;
+  if (typeof rawSourceUrl === 'string' && rawSourceUrl.trim()) {
+    const candidate = rawSourceUrl.trim().slice(0, 2048);
+    if (isValidHttpUrl(candidate)) sourceUrl = candidate;
   }
 
   let uid;
@@ -278,8 +310,8 @@ export default async (request) => {
   const perplexityBody = {
     model: MODEL,
     messages: [
-      { role: 'system', content: buildSystemPrompt() },
-      { role: 'user',   content: buildUserPrompt(script) }
+      { role: 'system', content: buildSystemPrompt(sourceUrl) },
+      { role: 'user',   content: buildUserPrompt(script, sourceUrl) }
     ],
     temperature: 0.2,
     stream: false,
@@ -341,6 +373,7 @@ export default async (request) => {
   }
 
   const verified      = claims.filter(c => c.status === 'verified').length;
+  const unverified    = claims.filter(c => c.status === 'unverified').length;
   const questionable  = claims.filter(c => c.status === 'questionable').length;
   const contradicted  = claims.filter(c => c.status === 'contradicted').length;
 
@@ -354,8 +387,10 @@ export default async (request) => {
     rawClaims: Array.isArray(parsed) ? parsed.length : 0,
     returned: claims.length,
     verified,
+    unverified,
     questionable,
     contradicted,
+    withSourceUrl: !!sourceUrl,
     latencyMs,
     inputTokens,
     outputTokens,

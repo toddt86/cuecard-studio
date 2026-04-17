@@ -1363,6 +1363,7 @@ html, body {
   font-weight: 600;
 }
 .fc-pill-verified     { background: rgba(16,185,129,0.15); color: #10b981; }
+.fc-pill-unverified   { background: rgba(148,163,184,0.18); color: #94a3b8; }
 .fc-pill-questionable { background: rgba(234,179,8,0.15);  color: #eab308; }
 .fc-pill-contradicted { background: rgba(239,68,68,0.15);  color: #ef4444; }
 .fc-pill-none         { background: var(--bg-tertiary);    color: var(--text-dim); }
@@ -1395,6 +1396,7 @@ html, body {
 }
 .fc-highlight:hover { filter: brightness(1.25); }
 .fc-highlight.fc-verified     { background: rgba(16,185,129,0.18); border-color: #10b981; }
+.fc-highlight.fc-unverified   { background: rgba(148,163,184,0.15); border-color: #94a3b8; }
 .fc-highlight.fc-questionable { background: rgba(234,179,8,0.20);  border-color: #eab308; }
 .fc-highlight.fc-contradicted { background: rgba(239,68,68,0.18);  border-color: #ef4444; }
 
@@ -1416,6 +1418,7 @@ html, body {
   transition: box-shadow 0.2s;
 }
 .fc-card.fc-card-verified     { border-left-color: #10b981; }
+.fc-card.fc-card-unverified   { border-left-color: #94a3b8; }
 .fc-card.fc-card-questionable { border-left-color: #eab308; }
 .fc-card.fc-card-contradicted { border-left-color: #ef4444; }
 .fc-card-header {
@@ -2263,7 +2266,7 @@ html, body {
 <div class="factcheck-overlay" id="factCheckModal">
   <div class="factcheck-box">
     <h2>Fact Check</h2>
-    <div class="factcheck-sub" id="factCheckSub">Claims are highlighted in the script. Green means verified, yellow means needs attention, red means contradicted by sources.</div>
+    <div class="factcheck-sub" id="factCheckSub">Green means verified by sources. Gray means no confirmation found but nothing contradicts it. Yellow means something's off. Red means contradicted.</div>
     <div class="factcheck-summary" id="factCheckSummary"></div>
     <div class="factcheck-scroll">
       <div class="factcheck-script" id="factCheckScript"></div>
@@ -3769,6 +3772,11 @@ var researchState = {
   citations: []
 };
 
+// Last-generated script + the URL it was written from. Used by Fact Check
+// to treat the source article as a primary source when the user hasn't
+// edited the script since generation. Cleared on any user edit or import.
+var lastGeneratedScript = { content: '', sourceUrl: '' };
+
 function openResearchModal() {
   if (!currentUser || !isPro) { showUpgradeModal(); return; }
   document.getElementById('researchError').classList.remove('active');
@@ -4014,6 +4022,12 @@ async function runGenerateScript() {
     if (streamError) {
       showToast(streamError);
     } else {
+      // Snapshot the generated script + the URL it was written from so
+      // Fact Check can pass the source to Perplexity as primary evidence.
+      // If the user later edits the textarea, the snapshot no longer matches
+      // and Fact Check falls back to general web search.
+      lastGeneratedScript = { content: ta.value, sourceUrl: url };
+
       // Render the sources pill if we got any.
       if (researchState.citations.length) {
         var pillLabel = document.getElementById('sourcesPillLabel');
@@ -4301,12 +4315,23 @@ async function runFactCheck() {
   btn.disabled = true;
   btn.innerHTML = '<span class="fc-btn-spinner"></span> Checking...';
 
+  // If the current script exactly matches what Feature 1 produced (and
+  // hasn't been edited since), pass the source URL so the fact-checker
+  // can treat that article as a primary source.
+  var sourceUrl = '';
+  if (lastGeneratedScript.content && lastGeneratedScript.sourceUrl &&
+      lastGeneratedScript.content.trim() === script) {
+    sourceUrl = lastGeneratedScript.sourceUrl;
+  }
+
   try {
     var idToken = await currentUser.getIdToken();
+    var payload = { idToken: idToken, script: script };
+    if (sourceUrl) payload.sourceUrl = sourceUrl;
     var res = await fetch('/.netlify/functions/fact-check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken: idToken, script: script })
+      body: JSON.stringify(payload)
     });
 
     var data;
@@ -4361,6 +4386,7 @@ function renderFactCheckResults() {
   }
 
   var verified     = nonOverlap.filter(function(c) { return c.status === 'verified'; }).length;
+  var unverified   = nonOverlap.filter(function(c) { return c.status === 'unverified'; }).length;
   var questionable = nonOverlap.filter(function(c) { return c.status === 'questionable'; }).length;
   var contradicted = nonOverlap.filter(function(c) { return c.status === 'contradicted'; }).length;
 
@@ -4371,6 +4397,7 @@ function renderFactCheckResults() {
   } else {
     var pills = [];
     if (verified)     pills.push('<span class="fc-pill fc-pill-verified">&#10003; ' + verified + ' verified</span>');
+    if (unverified)   pills.push('<span class="fc-pill fc-pill-unverified">&#9679; ' + unverified + ' unverified</span>');
     if (questionable) pills.push('<span class="fc-pill fc-pill-questionable">&#9888; ' + questionable + ' questionable</span>');
     if (contradicted) pills.push('<span class="fc-pill fc-pill-contradicted">&#10007; ' + contradicted + ' contradicted</span>');
     summaryEl.innerHTML = pills.join(' ');
@@ -4416,6 +4443,7 @@ function renderFactCheckResults() {
       var cd = nonOverlap[m];
       var badgeText = cd.status === 'verified' ? '&#10003; Verified'
                     : cd.status === 'contradicted' ? '&#10007; Contradicted'
+                    : cd.status === 'unverified' ? '&#9679; Unverified'
                     : '&#9888; Questionable';
       var sourcesHtml = '';
       for (var s = 0; s < cd.sources.length; s++) {
