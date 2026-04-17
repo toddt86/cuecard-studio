@@ -1060,6 +1060,160 @@ html, body {
   animation: ai-spin 0.8s linear infinite;
 }
 
+/* Trending Topics button (sits next to Research & Write) */
+.trending-btn {
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.trending-btn:hover { background: var(--accent-dim); }
+.trending-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+/* Trending modal shares .research-overlay styling. Preset chips for niches. */
+.trending-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.trending-preset {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.trending-preset:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Trending results overlay: the list of clickable story cards. */
+.trending-results-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 2500;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+}
+.trending-results-overlay.active { display: flex; }
+.trending-results-box {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 640px;
+  max-height: 85vh;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.trending-results-box h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.trending-results-box .trending-results-sub {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.trending-results-list {
+  flex: 1;
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+.trending-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.trending-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+}
+.trending-card .tc-headline {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+  margin-bottom: 6px;
+}
+.trending-card .tc-why {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+.trending-card .tc-angle {
+  font-size: 12px;
+  color: var(--accent);
+  line-height: 1.4;
+  font-style: italic;
+  margin-bottom: 8px;
+}
+.trending-card .tc-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.trending-card .tc-meta .tc-cta {
+  color: var(--accent);
+  font-weight: 600;
+}
+.trending-results-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  gap: 10px;
+}
+.trending-results-close,
+.trending-results-refresh {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.trending-results-close:hover,
+.trending-results-refresh:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
 /* Citations modal */
 .citations-overlay {
   display: none;
@@ -1567,6 +1721,9 @@ html, body {
           <button type="button" class="research-btn" id="researchBtn" onclick="openResearchModal()" title="Research a URL and write a teleprompter script">
             &#9733; Research &amp; Write
           </button>
+          <button type="button" class="trending-btn" id="trendingBtn" onclick="openTrendingModal()" title="Find what's trending this week in your niche">
+            &#128293; Trending
+          </button>
           <button type="button" class="ai-undo-btn" id="aiUndoBtn" style="display:none;" onclick="aiUndo()">Undo</button>
           <button type="button" class="ai-tools-btn" id="aiToolsBtn" onclick="toggleAiMenu(event)">
             &#10024; AI Tools <span class="chev">&#9660;</span>
@@ -1845,6 +2002,52 @@ html, body {
     <div class="research-actions">
       <button type="button" class="research-cancel" id="researchCancelBtn" onclick="closeResearchModal()">Cancel</button>
       <button type="button" class="research-generate" id="researchGenerateBtn" onclick="runGenerateScript()">Generate script</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ TRENDING TOPICS MODAL (niche input) ════════ -->
+<div class="research-overlay" id="trendingModal">
+  <div class="research-box">
+    <h2>Trending This Week</h2>
+    <p class="research-sub">Pick a niche. We'll find 5 stories creators are talking about this week and suggest a narrative angle for each one.</p>
+
+    <div class="research-field">
+      <label>Quick picks</label>
+      <div class="trending-presets" id="trendingPresets">
+        <button type="button" class="trending-preset" data-preset="marketing and branding">Marketing</button>
+        <button type="button" class="trending-preset" data-preset="business and entrepreneurship">Business</button>
+        <button type="button" class="trending-preset" data-preset="technology and AI">Tech / AI</button>
+        <button type="button" class="trending-preset" data-preset="personal finance and investing">Finance</button>
+        <button type="button" class="trending-preset" data-preset="health and wellness">Health</button>
+        <button type="button" class="trending-preset" data-preset="real estate">Real Estate</button>
+        <button type="button" class="trending-preset" data-preset="content creation and social media">Creator</button>
+      </div>
+    </div>
+
+    <div class="research-field">
+      <label for="trendingNiche">Your niche</label>
+      <input type="text" id="trendingNiche" placeholder="e.g. crypto, dog training, e-commerce" autocomplete="off" spellcheck="false" maxlength="120" style="width:100%;padding:11px 14px;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-family:var(--font-ui);font-size:14px;box-sizing:border-box;transition:border-color 0.15s;">
+    </div>
+
+    <div class="research-error" id="trendingError"></div>
+
+    <div class="research-actions">
+      <button type="button" class="research-cancel" id="trendingCancelBtn" onclick="closeTrendingModal()">Cancel</button>
+      <button type="button" class="research-generate" id="trendingGenerateBtn" onclick="runTrending()">Find trends</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ TRENDING RESULTS MODAL (clickable story cards) ════════ -->
+<div class="trending-results-overlay" id="trendingResultsModal">
+  <div class="trending-results-box">
+    <h2 id="trendingResultsTitle">Trending this week</h2>
+    <div class="trending-results-sub" id="trendingResultsSub"></div>
+    <div class="trending-results-list" id="trendingResultsList"></div>
+    <div class="trending-results-actions">
+      <button type="button" class="trending-results-refresh" onclick="reopenTrendingNicheModal()">Change niche</button>
+      <button type="button" class="trending-results-close" onclick="closeTrendingResults()">Close</button>
     </div>
   </div>
 </div>
@@ -3620,6 +3823,214 @@ async function runGenerateScript() {
   }
 }
 
+// ─── Trending Topics (Feature 2) ────────────────────────────────────────────
+var trendingState = {
+  loading: false,
+  lastNiche: '',
+  topics: []
+};
+
+function openTrendingModal() {
+  if (!currentUser || !isPro) { showUpgradeModal(); return; }
+  document.getElementById('trendingError').classList.remove('active');
+  var modal = document.getElementById('trendingModal');
+  modal.classList.add('active');
+  setTimeout(function() {
+    var input = document.getElementById('trendingNiche');
+    if (input && !input.value) input.focus();
+  }, 50);
+}
+
+function closeTrendingModal() {
+  if (trendingState.loading) return;
+  document.getElementById('trendingModal').classList.remove('active');
+}
+
+function showTrendingError(msg) {
+  var el = document.getElementById('trendingError');
+  el.textContent = msg;
+  el.classList.add('active');
+}
+function hideTrendingError() {
+  document.getElementById('trendingError').classList.remove('active');
+}
+
+function setTrendingLoadingUI(on) {
+  var btn = document.getElementById('trendingGenerateBtn');
+  var cancel = document.getElementById('trendingCancelBtn');
+  var input = document.getElementById('trendingNiche');
+  trendingState.loading = on;
+  if (on) {
+    btn.innerHTML = '<span class="mini-spinner"></span>Finding trends';
+    btn.disabled = true;
+    cancel.disabled = true;
+    cancel.style.opacity = '0.4';
+    input.disabled = true;
+  } else {
+    btn.textContent = 'Find trends';
+    btn.disabled = false;
+    cancel.disabled = false;
+    cancel.style.opacity = '';
+    input.disabled = false;
+  }
+}
+
+async function runTrending() {
+  if (trendingState.loading) return;
+  if (!currentUser || !isPro) { showUpgradeModal(); return; }
+
+  var input = document.getElementById('trendingNiche');
+  var niche = (input.value || '').trim();
+  hideTrendingError();
+
+  if (!niche) {
+    showTrendingError('Pick a quick option or type your niche.');
+    input.focus();
+    return;
+  }
+  if (niche.length > 120) niche = niche.slice(0, 120);
+
+  setTrendingLoadingUI(true);
+
+  var idToken;
+  try {
+    idToken = await currentUser.getIdToken();
+  } catch (e) {
+    setTrendingLoadingUI(false);
+    showTrendingError('Could not verify your sign-in. Try signing out and back in.');
+    return;
+  }
+
+  try {
+    var res = await fetch('/.netlify/functions/trending-topics', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ idToken: idToken, niche: niche, count: 5 })
+    });
+
+    if (!res.ok) {
+      var errBody;
+      try { errBody = await res.json(); } catch (e) { errBody = { error: 'Request failed' }; }
+      setTrendingLoadingUI(false);
+
+      if (res.status === 429) {
+        showToast(errBody.error || "You've hit today's generation limit. Resets at midnight UTC.");
+        closeTrendingModal();
+        return;
+      }
+      if (res.status === 403) {
+        closeTrendingModal();
+        showUpgradeModal();
+        return;
+      }
+      if (res.status === 401) {
+        showTrendingError('Your sign-in expired. Sign out and back in, then try again.');
+        return;
+      }
+      showTrendingError(errBody.error || 'Could not find trends. Try again.');
+      return;
+    }
+
+    var data = await res.json();
+    if (!data || !Array.isArray(data.topics) || data.topics.length === 0) {
+      setTrendingLoadingUI(false);
+      showTrendingError('Nothing came back. Try a more specific niche.');
+      return;
+    }
+
+    trendingState.topics = data.topics;
+    trendingState.lastNiche = niche;
+    setTrendingLoadingUI(false);
+    document.getElementById('trendingModal').classList.remove('active');
+    renderTrendingResults();
+  } catch (err) {
+    console.error('Trending fetch error:', err);
+    setTrendingLoadingUI(false);
+    showTrendingError('Connection issue. Try again?');
+  }
+}
+
+function renderTrendingResults() {
+  var list = document.getElementById('trendingResultsList');
+  var sub = document.getElementById('trendingResultsSub');
+  sub.textContent = trendingState.lastNiche
+    ? 'Niche: ' + trendingState.lastNiche
+    : '';
+  list.innerHTML = '';
+
+  trendingState.topics.forEach(function(t, idx) {
+    var card = document.createElement('div');
+    card.className = 'trending-card';
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+
+    var h = document.createElement('div');
+    h.className = 'tc-headline';
+    h.textContent = t.headline;
+    card.appendChild(h);
+
+    var why = document.createElement('div');
+    why.className = 'tc-why';
+    why.textContent = t.why_now;
+    card.appendChild(why);
+
+    var ang = document.createElement('div');
+    ang.className = 'tc-angle';
+    ang.textContent = 'Angle: ' + t.angle;
+    card.appendChild(ang);
+
+    var meta = document.createElement('div');
+    meta.className = 'tc-meta';
+    var srcCount = document.createElement('span');
+    srcCount.textContent = (t.source_urls || []).length + ' source' + ((t.source_urls || []).length === 1 ? '' : 's');
+    var cta = document.createElement('span');
+    cta.className = 'tc-cta';
+    cta.textContent = '→ Write script';
+    meta.appendChild(srcCount);
+    meta.appendChild(cta);
+    card.appendChild(meta);
+
+    card.addEventListener('click', function() { pickTrendingTopic(idx); });
+    card.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        pickTrendingTopic(idx);
+      }
+    });
+
+    list.appendChild(card);
+  });
+
+  document.getElementById('trendingResultsModal').classList.add('active');
+}
+
+function pickTrendingTopic(idx) {
+  var t = trendingState.topics[idx];
+  if (!t) return;
+  var firstUrl = (t.source_urls && t.source_urls[0]) || '';
+  if (!firstUrl) return;
+
+  // Close the results modal, pre-fill Research & Write, open it.
+  closeTrendingResults();
+  var urlInput = document.getElementById('researchUrl');
+  if (urlInput) urlInput.value = firstUrl;
+  // Default to 60s conversational for a trending-driven script.
+  setResearchDuration(60);
+  setResearchTone('conversational');
+  openResearchModal();
+}
+
+function closeTrendingResults() {
+  document.getElementById('trendingResultsModal').classList.remove('active');
+}
+
+function reopenTrendingNicheModal() {
+  closeTrendingResults();
+  openTrendingModal();
+  var input = document.getElementById('trendingNiche');
+  if (input) input.value = trendingState.lastNiche || '';
+}
+
 function openCitationsModal() {
   var list = document.getElementById('citationsList');
   list.innerHTML = '';
@@ -3687,12 +4098,52 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // Trending Topics wiring.
+  document.querySelectorAll('#trendingPresets .trending-preset').forEach(function(chip) {
+    chip.addEventListener('click', function() {
+      if (trendingState.loading) return;
+      var input = document.getElementById('trendingNiche');
+      input.value = chip.getAttribute('data-preset') || chip.textContent.trim();
+      hideTrendingError();
+      input.focus();
+    });
+  });
+  var trendingNicheInput = document.getElementById('trendingNiche');
+  if (trendingNicheInput) {
+    trendingNicheInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        runTrending();
+      }
+    });
+  }
+  var trendingOverlay = document.getElementById('trendingModal');
+  if (trendingOverlay) {
+    trendingOverlay.addEventListener('click', function(e) {
+      if (e.target === trendingOverlay && !trendingState.loading) {
+        closeTrendingModal();
+      }
+    });
+  }
+  var trendingResultsOverlay = document.getElementById('trendingResultsModal');
+  if (trendingResultsOverlay) {
+    trendingResultsOverlay.addEventListener('click', function(e) {
+      if (e.target === trendingResultsOverlay) closeTrendingResults();
+    });
+  }
+
   // Escape closes modals (if not streaming).
   document.addEventListener('keydown', function(e) {
     if (e.key !== 'Escape') return;
     var r = document.getElementById('researchModal');
     var c = document.getElementById('citationsModal');
-    if (c && c.classList.contains('active')) {
+    var tm = document.getElementById('trendingModal');
+    var tr = document.getElementById('trendingResultsModal');
+    if (tr && tr.classList.contains('active')) {
+      closeTrendingResults();
+    } else if (tm && tm.classList.contains('active') && !trendingState.loading) {
+      closeTrendingModal();
+    } else if (c && c.classList.contains('active')) {
       closeCitationsModal();
     } else if (r && r.classList.contains('active') && !researchState.streaming) {
       closeResearchModal();
