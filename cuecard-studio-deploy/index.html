@@ -1673,30 +1673,46 @@ body.ai-features-hidden .factcheck-btn { display: none !important; }
 #cameraControls > * { pointer-events: auto; }
 
 /* ── PHONE RECORD MODE ──
-   When you record from the Phone Teleprompter entry the script is a guide —
-   you're reading it off the phone, not presenting through a TV. So the text
-   should be SMALL and near the top of the screen (close to the camera lens,
-   well above the record button). Applied as .phone-record on #prompterScreen
-   alongside .camera-mode. */
+   When recording from the Phone Teleprompter, the script is just a reading
+   guide — you need the camera view unobscured for most of the screen. So we
+   clamp the text area to the top ~30% and let the camera feed fill the rest.
+   Applied as .phone-record on #prompterScreen alongside .camera-mode. */
+#prompterScreen.phone-record #prompterContent {
+  flex: 0 0 auto;
+  height: 30vh;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.35) 70%, transparent 100%);
+}
+#prompterScreen.phone-record #prompterContent::before { display: none; }
+#prompterScreen.phone-record #prompterContent::after {
+  top: auto; bottom: 0;
+  height: 30px;
+  background: linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 100%);
+}
+#prompterScreen.phone-record .focus-zone { display: none; }
+#prompterScreen.phone-record #textScroller { padding: 0 16px; }
+#prompterScreen.phone-record .prompter-text {
+  padding-top: 8px;
+  padding-bottom: 24vh;
+  line-height: 1.3;
+  font-weight: 600;
+  font-size: var(--phone-prompter-font-size, 22px) !important;
+}
 #prompterScreen.phone-record #cueCardScreen {
+  flex: 0 0 auto;
+  height: 30vh;
   justify-content: flex-start;
-  padding: 48px 18px 42vh;
+  padding: 18px 16px 8px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.35) 70%, transparent 100%);
 }
 #prompterScreen.phone-record #cueCardText {
-  font-size: clamp(14px, 4.2vw, 26px) !important;
   line-height: 1.3;
-  max-width: 94%;
+  max-width: 96%;
   font-weight: 600;
+  /* Inline font-size from showCueCard (getCueCardFontSize honors
+     state.phoneFontSize when fromPhoneMode) wins — no !important. */
 }
-#prompterScreen.phone-record .prompter-text {
-  font-size: clamp(14px, 4.2vw, 26px) !important;
-  padding-top: 8vh;
-  padding-bottom: 70vh;
-  line-height: 1.35;
-}
-#prompterScreen.phone-record .cue-counter { top: 10px; font-size: 11px; padding: 3px 10px; }
-/* Soften the bottom fade so the record button area stays clear of text. */
-#prompterScreen.phone-record #prompterContent::after { height: 30%; opacity: 0.75; }
+#prompterScreen.phone-record .cue-counter { top: 8px; font-size: 11px; padding: 3px 10px; }
+#prompterScreen.phone-record .cue-nav { bottom: 180px; }
 
 .camera-record-btn {
   width: 74px; height: 74px; border-radius: 50%;
@@ -2549,8 +2565,8 @@ body.ai-features-hidden .factcheck-btn { display: none !important; }
 
       <div class="phone-slider-row">
         <label>Font Size</label>
-        <input type="range" id="phoneFontSize" min="30" max="80" step="1" oninput="updatePhoneFontSize(this.value)">
-        <span class="phone-slider-value" id="phoneFontSizeVal">55</span>
+        <input type="range" id="phoneFontSize" min="14" max="40" step="1" value="22" oninput="updatePhoneFontSize(this.value)">
+        <span class="phone-slider-value" id="phoneFontSizeVal">22</span>
       </div>
 
       <div class="phone-slider-row">
@@ -4879,6 +4895,16 @@ function splitIntoWordChunks(text, n) {
 }
 
 function getCueCardFontSize(text) {
+  // Phone-record mode uses a fixed user-set font size — the text area is
+  // clipped to the top ~30vh, so length-based amplification would just
+  // overflow. Short cards can be slightly larger, long ones shrink.
+  if (state.fromPhoneMode) {
+    var base = state.phoneFontSize || 22;
+    const len = text.length;
+    if (len < 40) return Math.min(32, base + 4);
+    if (len < 100) return base;
+    return Math.max(14, base - 4);
+  }
   // Pick a reasonable STARTING size based on character length. The
   // showCueCard() auto-fit pass will shrink from here if the text still
   // doesn't fit the visible area (above the HUD and progress bar).
@@ -5119,7 +5145,7 @@ function showCueCard() {
   el.style.fontSize = size + 'px';
   const cs = getComputedStyle(screen);
   const availableH = screen.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-  const MIN_FIT = 32;
+  const MIN_FIT = state.fromPhoneMode ? 14 : 32;
   // Force reflow so scrollHeight is accurate, then step down in 2px
   // increments until it fits or we hit the floor.
   let guard = 40;
@@ -5425,8 +5451,12 @@ function syncPhoneControlsFromState() {
 
   var fs = document.getElementById('phoneFontSize');
   var fsVal = document.getElementById('phoneFontSizeVal');
-  if (fs) { fs.value = state.fontSize; }
-  if (fsVal) { fsVal.textContent = state.fontSize; }
+  // Phone-record uses its own smaller font scale (14-40) kept separate from
+  // the main teleprompter's 24-120. Default to 22 if never set.
+  if (typeof state.phoneFontSize !== 'number') state.phoneFontSize = 22;
+  if (fs) { fs.value = state.phoneFontSize; }
+  if (fsVal) { fsVal.textContent = state.phoneFontSize; }
+  document.documentElement.style.setProperty('--phone-prompter-font-size', state.phoneFontSize + 'px');
 
   var sp = document.getElementById('phoneSpeed');
   var spVal = document.getElementById('phoneSpeedVal');
@@ -5455,13 +5485,15 @@ function setPhoneRunMode(mode) {
 }
 
 function updatePhoneFontSize(val) {
-  var n = parseInt(val, 10) || 55;
-  state.fontSize = n;
+  // Phone-record uses a SEPARATE font scale from the main teleprompter.
+  // Main is designed for big-screen distance reading (24-120px), phone is
+  // held 12" from your face (14-40px). Don't write back to state.fontSize
+  // or the main slider — keep them decoupled.
+  var n = parseInt(val, 10) || 22;
+  state.phoneFontSize = n;
   var vEl = document.getElementById('phoneFontSizeVal');
   if (vEl) vEl.textContent = n;
-  // Keep main slider in sync if the user returns to the main screen.
-  var mainFs = document.getElementById('fontSize');
-  if (mainFs) mainFs.value = n;
+  document.documentElement.style.setProperty('--phone-prompter-font-size', n + 'px');
 }
 
 function updatePhoneSpeed(val) {
@@ -5611,6 +5643,10 @@ async function startRecordMode() {
   // overlay and push it to the top via .phone-record.
   if (state.fromPhoneMode) {
     document.getElementById('prompterScreen').classList.add('phone-record');
+    // Make sure the phone-specific font CSS var is set (user may not have
+    // opened the phone slider in this session yet).
+    if (typeof state.phoneFontSize !== 'number') state.phoneFontSize = 22;
+    document.documentElement.style.setProperty('--phone-prompter-font-size', state.phoneFontSize + 'px');
   } else {
     document.getElementById('prompterScreen').classList.remove('phone-record');
   }
@@ -5687,6 +5723,73 @@ async function flipCamera() {
   }
 }
 
+// ── PORTRAIT CANVAS PIPELINE ──
+// iOS Safari's getUserMedia often returns a landscape 1920x1080 stream even
+// when the phone is held in portrait, and MediaRecorder records the raw
+// pixels — so the saved MP4 is horizontal. We work around that by drawing
+// every video frame onto a 1080x1920 portrait canvas with cover-fit, then
+// using canvas.captureStream() + the original audio track as the recording
+// input. Output is guaranteed portrait regardless of sensor orientation.
+function startPortraitCanvasPipeline() {
+  if (!state.cameraStream) return null;
+  var videoEl = document.getElementById('cameraPreview');
+  if (!videoEl) return null;
+  try {
+    var canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1920;
+    var ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    state.recordCanvas = canvas;
+    state.recordCanvasCtx = ctx;
+    state.recordCanvasActive = true;
+    var drawFrame = function() {
+      if (!state.recordCanvasActive) return;
+      var vw = videoEl.videoWidth || 0;
+      var vh = videoEl.videoHeight || 0;
+      if (vw > 0 && vh > 0) {
+        // object-fit: cover — fill the canvas, crop overflow to match preview.
+        var scale = Math.max(canvas.width / vw, canvas.height / vh);
+        var dw = vw * scale;
+        var dh = vh * scale;
+        var dx = (canvas.width - dw) / 2;
+        var dy = (canvas.height - dh) / 2;
+        try { ctx.drawImage(videoEl, dx, dy, dw, dh); } catch (e) {}
+      }
+      state.recordCanvasRafId = requestAnimationFrame(drawFrame);
+    };
+    drawFrame();
+    var canvasStream = canvas.captureStream(30);
+    state.cameraStream.getAudioTracks().forEach(function(t) {
+      try { canvasStream.addTrack(t); } catch (e) {}
+    });
+    state.recordingStream = canvasStream;
+    return canvasStream;
+  } catch (err) {
+    console.error('Portrait canvas pipeline failed:', err);
+    stopPortraitCanvasPipeline();
+    return null;
+  }
+}
+
+function stopPortraitCanvasPipeline() {
+  state.recordCanvasActive = false;
+  if (state.recordCanvasRafId) {
+    cancelAnimationFrame(state.recordCanvasRafId);
+    state.recordCanvasRafId = null;
+  }
+  if (state.recordingStream) {
+    // Stop only the video track we created — audio track is shared with the
+    // original camera stream and will be cleaned up by releaseCameraStream.
+    state.recordingStream.getVideoTracks().forEach(function(t) {
+      try { t.stop(); } catch (e) {}
+    });
+    state.recordingStream = null;
+  }
+  state.recordCanvas = null;
+  state.recordCanvasCtx = null;
+}
+
 function pickRecorderMimeType() {
   if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return '';
   // Prefer MP4 (iOS Safari 15+ supports this and it's what Todd asked for).
@@ -5718,10 +5821,18 @@ function toggleRecord() {
 function startRecording() {
   state.recordMimeType = pickRecorderMimeType();
   state.recordChunks = [];
+  // Phone-mode recordings route through a 1080x1920 canvas so the saved
+  // MP4 is portrait even if the sensor returned landscape. Main-screen
+  // Record Video (if later restored) still records the raw stream.
+  var recordStream = state.cameraStream;
+  if (state.fromPhoneMode) {
+    if (!state.recordingStream) startPortraitCanvasPipeline();
+    if (state.recordingStream) recordStream = state.recordingStream;
+  }
   try {
     state.mediaRecorder = state.recordMimeType
-      ? new MediaRecorder(state.cameraStream, { mimeType: state.recordMimeType })
-      : new MediaRecorder(state.cameraStream);
+      ? new MediaRecorder(recordStream, { mimeType: state.recordMimeType })
+      : new MediaRecorder(recordStream);
   } catch (err) {
     console.error('MediaRecorder init failed:', err);
     showToast('Could not start recording');
@@ -5815,6 +5926,7 @@ function exitPrompter() {
     }
     clearInterval(state.recordTimerInterval);
     state.recordTimerInterval = null;
+    stopPortraitCanvasPipeline();
     releaseCameraStream();
     state.recordMode = false;
     document.getElementById('prompterScreen').classList.remove('camera-mode');
