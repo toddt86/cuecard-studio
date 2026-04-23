@@ -1673,6 +1673,12 @@ body.ai-features-hidden .factcheck-btn { display: none !important; }
 #cueCardText.mirrored { transform: scaleX(-1); }
 #cueCardText.fade-out { opacity: 0; transform: translateY(-16px); }
 #cueCardText.mirrored.fade-out { opacity: 0; transform: scaleX(-1) translateY(-16px); }
+/* Script divider cards: standalone [Script N] markers promoted to their
+   own card so they never bundle with the tail of one script or the hook
+   of the next. Accent color + tinted background + uppercase letter-spacing
+   make them feel like a chapter break, not a line of script. */
+#cueCardScreen.cue-divider-screen { background: var(--accent-dim); }
+#cueCardText.cue-divider { color: var(--accent); font-weight: 800; text-transform: uppercase; letter-spacing: 6px; text-shadow: 0 0 30px var(--accent-glow); }
 @keyframes voiceTriggerFlash { 0% { box-shadow: inset 0 0 0 3px rgba(52,211,153,0.9), 0 0 30px rgba(52,211,153,0.3); } 100% { box-shadow: inset 0 0 0 3px rgba(52,211,153,0), 0 0 30px rgba(52,211,153,0); } }
 #cueCardScreen.voice-trigger-flash { animation: voiceTriggerFlash 0.45s ease-out; }
 .cue-counter { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); font-family: var(--font-mono); font-size: 13px; color: var(--text-secondary); background: rgba(0,0,0,0.6); padding: 4px 14px; border-radius: 6px; z-index: 20; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
@@ -4720,6 +4726,42 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function splitIntoCueCards(text) { return text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 0); }
 
+// Regex matching a Split-Scripts marker like [Script 1], [Script 2], etc.
+// Case-insensitive, tolerant of whitespace inside the brackets.
+var SCRIPT_MARKER_RE   = /\[Script\s+\d+\]/gi;
+var SCRIPT_MARKER_ONLY = /^\s*\[Script\s+\d+\]\s*$/i;
+
+// After any chunker runs, walk the resulting cards and ensure each
+// [Script N] marker stands alone as its own card. If a chunker accidentally
+// bundled a marker with neighboring text, split it out. If the text contains
+// no markers, this is a no-op.
+function splitOutScriptMarkers(cards) {
+  var out = [];
+  for (var i = 0; i < cards.length; i++) {
+    var text = String(cards[i] || '').trim();
+    if (!text) continue;
+
+    if (SCRIPT_MARKER_ONLY.test(text)) { out.push(text); continue; }
+
+    SCRIPT_MARKER_RE.lastIndex = 0;
+    if (!SCRIPT_MARKER_RE.test(text)) { out.push(text); continue; }
+
+    // Card contains a marker inline. Walk it, emitting text/marker/text as
+    // separate standalone cards so the divider card is visually clean.
+    SCRIPT_MARKER_RE.lastIndex = 0;
+    var lastIdx = 0, m;
+    while ((m = SCRIPT_MARKER_RE.exec(text)) !== null) {
+      var before = text.slice(lastIdx, m.index).trim();
+      if (before) out.push(before);
+      out.push(m[0]);
+      lastIdx = m.index + m[0].length;
+    }
+    var tail = text.slice(lastIdx).trim();
+    if (tail) out.push(tail);
+  }
+  return out;
+}
+
 function splitIntoWordChunks(text, n) {
   // Normalize whitespace, split into words, then chunk into groups of n.
   var words = text.replace(/\s+/g, ' ').trim().split(' ').filter(function(w) { return w.length > 0; });
@@ -4946,6 +4988,10 @@ function startCueCardMode(cleaned, precomputedCards) {
   } else {
     state.cueCards = splitIntoCueCards(cleaned);
   }
+  // If the user ran Split Scripts, the text carries [Script N] markers.
+  // Promote each marker to its own standalone card so cue card / voice
+  // mode show a clear divider between scripts. No-op when no markers.
+  state.cueCards = splitOutScriptMarkers(state.cueCards);
   state.cueIndex = 0;
   document.getElementById('hudMode').textContent = 'CUE CARD';
   document.getElementById('cueCardText').classList.toggle('mirrored', state.mirror);
@@ -4961,8 +5007,28 @@ function showCueCard() {
   const el = document.getElementById('cueCardText');
   const screen = document.getElementById('cueCardScreen');
   const card = state.cueCards[state.cueIndex];
-  el.textContent = card;
   el.classList.remove('fade-out');
+
+  // Divider card: a standalone [Script N] marker from Split Scripts.
+  // Shown without brackets, in accent color, on a tinted background so
+  // it's unmistakably a separator between scripts rather than part of
+  // the actual script content.
+  const isDivider = SCRIPT_MARKER_ONLY.test(String(card || ''));
+  el.classList.toggle('cue-divider', isDivider);
+  screen.classList.toggle('cue-divider-screen', isDivider);
+
+  if (isDivider) {
+    // Strip brackets for display. Preserve "Script 1", "Script 2", etc.
+    el.textContent = String(card).replace(/[\[\]]/g, '').trim();
+    // Big, fixed size. Divider cards are always short, and we want them
+    // to feel distinct from the auto-fit body cards.
+    el.style.fontSize = '120px';
+    document.getElementById('cueCounter').textContent = (state.cueIndex + 1) + ' / ' + state.cueCards.length;
+    document.getElementById('progressBar').style.width = (((state.cueIndex + 1) / state.cueCards.length) * 100) + '%';
+    return;
+  }
+
+  el.textContent = card;
   // Start from the char-length heuristic, then shrink until the rendered
   // text actually fits the padded safe area (above the HUD, below the
   // progress bar and cue counter). This prevents the 5th/6th line from
@@ -5010,6 +5076,10 @@ function startVoiceMode(cleaned, precomputedCards) {
   } else {
     state.cueCards = splitIntoCueCards(cleaned);
   }
+  // If the user ran Split Scripts, the text carries [Script N] markers.
+  // Promote each marker to its own standalone card so cue card / voice
+  // mode show a clear divider between scripts. No-op when no markers.
+  state.cueCards = splitOutScriptMarkers(state.cueCards);
   state.cueIndex = 0;
   document.getElementById('hudMode').textContent = 'VOICE';
   document.getElementById('cueCardText').classList.toggle('mirrored', state.mirror);
