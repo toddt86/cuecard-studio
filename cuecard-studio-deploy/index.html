@@ -2051,7 +2051,7 @@ body.ai-features-hidden .factcheck-btn { display: none !important; }
         <h3>Teleprompter Remote</h3>
         <select id="remoteSelect" onchange="setRemoteType(this.value)">
           <option value="padcaster">Padcaster (default)</option>
-          <option value="ambitful">Ambitful Remote</option>
+          <option value="satechi">Satechi R1</option>
         </select>
         <div class="remote-legend" id="remoteLegend"></div>
       </div>
@@ -3645,8 +3645,6 @@ const state = {
   hudTimeout: null, hudVisible: true,
   cueCards: [], cueIndex: 0, inLiveMode: false,
   remoteType: 'padcaster',
-  _ambitfulLastSpeedAt: 0, _ambitfulLastJumpAt: 0, _ambitfulLastFaceAt: 0,
-  _ambitfulLastArrowDownAt: 0, _ambitfulLastResetAt: 0,
   cueSplitMode: 'sentence',
   chunkSize: 12, triggerOffset: 4, voiceRecognition: null, voiceListening: false,
   _voiceLastAdvanceAt: 0, _voiceRestartTimer: null,
@@ -3803,9 +3801,14 @@ function loadSettings() {
         document.getElementById('countdownToggle').classList.toggle('active', s.countdownEnabled);
       }
       if (s.remoteType) {
-        state.remoteType = s.remoteType;
+        // Migrate legacy value: 'ambitful' was removed, fall back to padcaster.
+        var loadedRemote = (s.remoteType === 'ambitful') ? 'padcaster' : s.remoteType;
+        // Also guard against any value not in REMOTE_PROFILES (e.g. a future
+        // rename that hasn't shipped to this device yet).
+        if (!REMOTE_PROFILES[loadedRemote]) loadedRemote = 'padcaster';
+        state.remoteType = loadedRemote;
         var sel = document.getElementById('remoteSelect');
-        if (sel) sel.value = s.remoteType;
+        if (sel) sel.value = loadedRemote;
         renderRemoteLegend();
       }
       if (s.chunkSize !== undefined) {
@@ -5974,13 +5977,13 @@ const REMOTE_PROFILES = {
       { key: 'Arrows', action: 'Scroll / Speed' }
     ]
   },
-  ambitful: {
-    name: 'Ambitful Remote',
+  satechi: {
+    name: 'Satechi R1',
     legend: [
-      { key: 'OK (top)', action: 'Play / Pause' },
-      { key: 'Joystick L/R', action: 'Speed down / up' },
-      { key: 'Joystick U/D', action: 'Scroll back / forward' },
-      { key: 'Mode switch', action: 'Set to GAME' }
+      { key: 'Vol +', action: 'Speed up / Next cue' },
+      { key: 'Vol -', action: 'Speed down / Prev cue' },
+      { key: 'Home / Siri / Mute', action: 'Handled by iOS (not remapped)' },
+      { key: 'Side arrows', action: 'Not currently supported' }
     ]
   }
 };
@@ -6016,98 +6019,11 @@ document.addEventListener('click', function(e) {
   }
 });
 
-// Ambitful throttled handler — runs BEFORE the default keyboard handler
-// Returns true if the event was consumed by the Ambitful profile
-function handleAmbitfulKey(e) {
-  if (state.remoteType !== 'ambitful') return false;
-  if (!document.getElementById('prompterScreen').classList.contains('active')) return false;
-
-  var now = Date.now();
-  var SPEED_THROTTLE_MS = 250;
-  var JUMP_THROTTLE_MS = 220;
-  var PLAYPAUSE_THROTTLE_MS = 400;
-  var SCROLL_JUMP_PX = 120;
-
-  // Face buttons (OK/top and X) cycle through these keys on this remote firmware.
-  // Any of them = "a face button was pressed" = play/pause.
-  var FACE_BUTTON_KEYS = { 'q': 1, 'h': 1, 'r': 1, 'e': 1, 'y': 1, 't': 1, 'z': 1, '1': 1, '2': 1 };
-
-  // Joystick up/down fire BOTH an arrow key AND a letter. We listen for the letter
-  // and swallow the arrow to prevent double-firing.
-  var k = e.key;
-  var code = e.code;
-
-  // Swallow the duplicate arrow-key from joystick up/down so nothing double-fires.
-  // Track ArrowDown timing so we can tell joystick-down (KeyX paired w/ ArrowDown)
-  // apart from a real X face button press (KeyX alone).
-  if (code === 'ArrowUp' || code === 'ArrowDown') {
-    if (code === 'ArrowDown') state._ambitfulLastArrowDownAt = now;
-    e.preventDefault(); e.stopPropagation();
-    return true;
-  }
-
-  // Joystick UP (KeyW) → scroll back (throttled)
-  if (code === 'KeyW') {
-    e.preventDefault(); e.stopPropagation();
-    if (now - state._ambitfulLastJumpAt < JUMP_THROTTLE_MS) return true;
-    state._ambitfulLastJumpAt = now;
-    if (state.mode === 'cuecard') { cuePrev(); }
-    else {
-      state.scrollPos = Math.max(0, state.scrollPos - SCROLL_JUMP_PX);
-      applyScroll(); updateProgress();
-    }
-    showHUD();
-    return true;
-  }
-
-  // KeyX is sent by joystick-down (we don't try to support the X face button as
-  // a separate action because it sends cycling keys that conflict with the OK button).
-  if (code === 'KeyX') {
-    e.preventDefault(); e.stopPropagation();
-    if (now - state._ambitfulLastJumpAt < JUMP_THROTTLE_MS) return true;
-    state._ambitfulLastJumpAt = now;
-    if (state.mode === 'cuecard' || state.mode === 'voice') { cueNext(); }
-    else {
-      state.scrollPos = Math.min(state.totalHeight, state.scrollPos + SCROLL_JUMP_PX);
-      applyScroll(); updateProgress();
-    }
-    showHUD();
-    return true;
-  }
-
-  // Joystick left/right → speed (throttled, ArrowLeft/ArrowRight come through cleanly)
-  if (code === 'ArrowLeft' || code === 'ArrowRight') {
-    e.preventDefault(); e.stopPropagation();
-    if (now - state._ambitfulLastSpeedAt < SPEED_THROTTLE_MS) return true;
-    state._ambitfulLastSpeedAt = now;
-    if (state.mode === 'cuecard' || state.mode === 'voice') {
-      code === 'ArrowLeft' ? cuePrev() : cueNext();
-    } else {
-      adjustSpeed(code === 'ArrowLeft' ? -1 : 1);
-    }
-    showHUD();
-    return true;
-  }
-
-  // Face buttons (OK/top and X on gamepad face) cycle through multiple keys per press.
-  // Treat any of them as play/pause, and heavily throttle so a single press that fires
-  // a cycling sequence only toggles once.
-  if (FACE_BUTTON_KEYS[k]) {
-    e.preventDefault(); e.stopPropagation();
-    if (now - state._ambitfulLastFaceAt < PLAYPAUSE_THROTTLE_MS) return true;
-    state._ambitfulLastFaceAt = now;
-    if (state.mode === 'cuecard' || state.mode === 'voice') { cueNext(); }
-    else { togglePlayPause(); }
-    showHUD();
-    return true;
-  }
-
-  return false;
-}
-
 // Keyboard / Remote
+// The Satechi R1 (and Padcaster) send standard media keys — Vol +/- are the
+// only ones iOS passes to the web view. Those are caught by the
+// AudioVolumeUp/Down handler further down. No per-remote keymap needed.
 document.addEventListener('keydown', function(e) {
-  if (handleAmbitfulKey(e)) return;
   var promptActive = document.getElementById('prompterScreen').classList.contains('active');
   var cueActive = document.getElementById('cueCardScreen').classList.contains('active');
   if (!promptActive && !cueActive) return;
