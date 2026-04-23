@@ -179,6 +179,88 @@ html, body {
   color: #ccc;
 }
 
+.remote-test-btn {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.remote-test-btn:active { background: rgba(204,40,40,0.15); }
+
+/* Remote test overlay: shows every key/gamepad/media-session event so we
+   can actually see what the Satechi sends on this device. */
+.remote-test-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.92);
+  z-index: 500;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.remote-test-modal.open { display: flex; }
+.remote-test-content {
+  width: 100%;
+  max-width: 520px;
+  background: #151515;
+  border: 1px solid #333;
+  border-radius: 14px;
+  padding: 20px;
+  color: #fff;
+  font-family: var(--font-ui);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+.remote-test-content h3 { margin: 0 0 8px; font-size: 16px; font-weight: 700; }
+.remote-test-content p { margin: 0 0 12px; font-size: 13px; color: #aaa; line-height: 1.4; }
+.remote-test-log {
+  flex: 1;
+  min-height: 200px;
+  max-height: 50vh;
+  overflow-y: auto;
+  background: #0a0a0a;
+  border: 1px solid #222;
+  border-radius: 8px;
+  padding: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #0f0;
+  margin-bottom: 14px;
+}
+.remote-test-empty { color: #666; text-align: center; padding: 40px 0; font-size: 13px; }
+.remote-test-row {
+  display: grid;
+  grid-template-columns: 72px 100px 1fr;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px dashed #222;
+}
+.remote-test-ts { color: #666; }
+.remote-test-src { color: var(--accent); font-weight: 600; }
+.remote-test-detail { color: #ccc; word-break: break-all; }
+.remote-test-close {
+  width: 100%;
+  padding: 12px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 @media (max-width: 700px) {
   .remote-area { top: calc(env(safe-area-inset-top, 0px) + 16px); left: calc(env(safe-area-inset-left, 0px) + 16px); }
   .remote-panel { min-width: 260px; }
@@ -2054,6 +2136,17 @@ body.ai-features-hidden .factcheck-btn { display: none !important; }
           <option value="satechi">Satechi R1</option>
         </select>
         <div class="remote-legend" id="remoteLegend"></div>
+        <button class="remote-test-btn" onclick="openRemoteTest()">Test Remote Buttons</button>
+      </div>
+    </div>
+
+    <!-- Remote test overlay -->
+    <div id="remoteTestModal" class="remote-test-modal">
+      <div class="remote-test-content">
+        <h3>Test Remote Buttons</h3>
+        <p>Press every button on your remote (and try flipping the mode switch on the side). Any detected events will appear below.</p>
+        <div class="remote-test-log" id="remoteTestLog"></div>
+        <button class="remote-test-close" onclick="closeRemoteTest()">Close</button>
       </div>
     </div>
   </div>
@@ -5085,6 +5178,10 @@ async function startPrompter() {
   if (state.mode === 'voice') startVoiceMode(cleaned, precomputedCards);
   else if (state.mode === 'cuecard') startCueCardMode(cleaned, precomputedCards);
   else startScrollMode(cleaned);
+  // Activate Media Session so BT remote buttons (Satechi volume, play/pause,
+  // track skip) actually reach us on iOS Safari. Silent audio loop keeps the
+  // session live; no sound is produced.
+  activateRemoteMediaSession();
 }
 
 function startScrollMode(cleaned) {
@@ -5921,6 +6018,7 @@ function finalizeRecording() {
 function exitPrompter() {
   state.playing = false; cancelAnimationFrame(state.animFrame); stopElapsedTimer(); releaseWakeLock();
   stopVoiceRecognition();
+  deactivateRemoteMediaSession();
   // Tear down record mode: stop recorder (onstop finalizes the download),
   // release camera tracks, clear timers and UI state.
   if (state.recordMode) {
@@ -5980,10 +6078,12 @@ const REMOTE_PROFILES = {
   satechi: {
     name: 'Satechi R1',
     legend: [
-      { key: 'Vol +', action: 'Speed up / Next cue' },
-      { key: 'Vol -', action: 'Speed down / Prev cue' },
-      { key: 'Home / Siri / Mute', action: 'Handled by iOS (not remapped)' },
-      { key: 'Side arrows', action: 'Not currently supported' }
+      { key: 'Mode slider', action: 'Try POINTER mode for arrow keys' },
+      { key: 'Vol +', action: 'Play / Pause (Media Session)' },
+      { key: 'Vol -', action: 'Play / Pause (Media Session)' },
+      { key: 'Arrows (Pointer)', action: 'Speed / Cue nav' },
+      { key: 'Shutter', action: 'Play / Pause' },
+      { key: 'Use "Test Remote"', action: 'to see what actually fires' }
     ]
   }
 };
@@ -6018,6 +6118,239 @@ document.addEventListener('click', function(e) {
     panel.classList.remove('open');
   }
 });
+
+// ════════ Media Session (BT remote on iOS) ════════
+// iOS Safari doesn't fire keydown for consumer-control HID events (volume,
+// play/pause, next/prev track — all the Satechi / Padcaster buttons). The
+// ONLY way to catch them in a web app is the Media Session API, which
+// requires active media playback. We run a silent WAV loop while the
+// prompter is active to keep the session live.
+var _silentAudio = null;
+var _silentAudioURL = null;
+var _mediaSessionActive = false;
+
+function _makeSilentAudioURL() {
+  // 1 second of silence at 8kHz mono 16-bit PCM WAV — ~16KB blob, plays
+  // cleanly on iOS Safari and activates Media Session when looped.
+  if (_silentAudioURL) return _silentAudioURL;
+  try {
+    var sampleRate = 8000;
+    var numSamples = sampleRate * 1;
+    var buffer = new ArrayBuffer(44 + numSamples * 2);
+    var view = new DataView(buffer);
+    var writeStr = function(offset, str) {
+      for (var i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    };
+    writeStr(0, 'RIFF');
+    view.setUint32(4, 36 + numSamples * 2, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);          // PCM
+    view.setUint16(22, 1, true);          // mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeStr(36, 'data');
+    view.setUint32(40, numSamples * 2, true);
+    // Samples are all zeros (silent) — ArrayBuffer is zero-init.
+    var blob = new Blob([buffer], { type: 'audio/wav' });
+    _silentAudioURL = URL.createObjectURL(blob);
+    return _silentAudioURL;
+  } catch (e) { return null; }
+}
+
+function _registerMediaSessionHandlers(onEvent) {
+  if (!('mediaSession' in navigator)) return;
+  var actions = ['play', 'pause', 'stop', 'nexttrack', 'previoustrack', 'seekforward', 'seekbackward', 'seekto'];
+  actions.forEach(function(action) {
+    try {
+      navigator.mediaSession.setActionHandler(action, function(details) {
+        if (onEvent) onEvent(action, details);
+      });
+    } catch (e) {}
+  });
+}
+
+function _mediaSessionDispatch(action) {
+  // Route each action to teleprompter behavior. We're aggressive — most iOS
+  // remote buttons surface as one of these actions, and the user wants them
+  // to do SOMETHING useful.
+  var promptActive = document.getElementById('prompterScreen').classList.contains('active');
+  if (!promptActive) return;
+  var isCard = (state.mode === 'cuecard' || state.mode === 'voice');
+  switch (action) {
+    case 'play':
+    case 'pause':
+    case 'stop':
+      if (isCard) cueNext(); else togglePlayPause();
+      break;
+    case 'nexttrack':
+    case 'seekforward':
+      if (isCard) cueNext();
+      else { state.scrollPos = Math.min(state.totalHeight, state.scrollPos + 120); applyScroll(); updateProgress(); }
+      break;
+    case 'previoustrack':
+    case 'seekbackward':
+      if (isCard) cuePrev();
+      else { state.scrollPos = Math.max(0, state.scrollPos - 120); applyScroll(); updateProgress(); }
+      break;
+  }
+  showHUD();
+}
+
+function activateRemoteMediaSession() {
+  if (_mediaSessionActive) return;
+  try {
+    if (!_silentAudio) {
+      var url = _makeSilentAudioURL();
+      if (!url) return;
+      _silentAudio = new Audio(url);
+      _silentAudio.loop = true;
+      _silentAudio.volume = 0.001; // near-silent; iOS needs > 0 to activate session
+    }
+    var playPromise = _silentAudio.play();
+    if (playPromise && playPromise.then) {
+      playPromise.then(function() {
+        _mediaSessionActive = true;
+        if ('mediaSession' in navigator) {
+          try { navigator.mediaSession.playbackState = 'playing'; } catch (e) {}
+          try {
+            navigator.mediaSession.metadata = new MediaMetadata({
+              title: 'Cuecard Studio',
+              artist: 'Teleprompter'
+            });
+          } catch (e) {}
+          _registerMediaSessionHandlers(function(action) { _mediaSessionDispatch(action); });
+        }
+      }).catch(function() {});
+    }
+  } catch (e) {}
+}
+
+function deactivateRemoteMediaSession() {
+  if (!_mediaSessionActive) {
+    // Still try to pause in case audio started without us tracking.
+    if (_silentAudio) { try { _silentAudio.pause(); } catch (e) {} }
+    return;
+  }
+  if (_silentAudio) { try { _silentAudio.pause(); } catch (e) {} }
+  _mediaSessionActive = false;
+  if ('mediaSession' in navigator) {
+    try { navigator.mediaSession.playbackState = 'none'; } catch (e) {}
+  }
+}
+
+// ════════ Remote Test / Diagnostic ════════
+// Shows a live log of every key / gamepad / media-session event so we can
+// see what the remote actually sends on this device. Turned on from the
+// remote panel — no effect when closed.
+var _remoteTestActive = false;
+var _remoteTestEvents = [];
+var _remoteTestGamepadInterval = null;
+var _remoteTestLastButtons = {};
+
+function openRemoteTest() {
+  _remoteTestActive = true;
+  _remoteTestEvents = [];
+  _remoteTestLastButtons = {};
+  document.getElementById('remoteTestModal').classList.add('open');
+  _renderRemoteTestLog();
+  // Activate media session so the diagnostic also catches BT consumer-control
+  // buttons routed through MediaSession.
+  activateRemoteMediaSession();
+  // Register our test-tap handlers too (they'll run alongside the normal
+  // dispatch handler registered by activateRemoteMediaSession).
+  _registerMediaSessionHandlers(function(action, details) {
+    _logRemoteEvent('MediaSession', action + (details && details.seekTime ? ' @ ' + details.seekTime : ''));
+  });
+  _startGamepadPolling();
+}
+
+function closeRemoteTest() {
+  _remoteTestActive = false;
+  document.getElementById('remoteTestModal').classList.remove('open');
+  _stopGamepadPolling();
+  var promptActive = document.getElementById('prompterScreen') && document.getElementById('prompterScreen').classList.contains('active');
+  if (promptActive) {
+    // Restore the real dispatch handler (the test mode had replaced it with a
+    // logger) so the remote actually controls the prompter again.
+    _registerMediaSessionHandlers(function(action) { _mediaSessionDispatch(action); });
+  } else {
+    // No prompter running — silent audio loop can stop.
+    deactivateRemoteMediaSession();
+  }
+}
+
+function _logRemoteEvent(source, detail) {
+  if (!_remoteTestActive) return;
+  var d = new Date();
+  var ts = d.toTimeString().slice(0, 8) + '.' + String(d.getMilliseconds()).padStart(3, '0');
+  _remoteTestEvents.unshift({ ts: ts, source: source, detail: detail });
+  if (_remoteTestEvents.length > 50) _remoteTestEvents.length = 50;
+  _renderRemoteTestLog();
+}
+
+function _renderRemoteTestLog() {
+  var log = document.getElementById('remoteTestLog');
+  if (!log) return;
+  if (_remoteTestEvents.length === 0) {
+    log.innerHTML = '<div class="remote-test-empty">Press any button on your remote...</div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < _remoteTestEvents.length; i++) {
+    var ev = _remoteTestEvents[i];
+    html += '<div class="remote-test-row">'
+      + '<span class="remote-test-ts">' + ev.ts + '</span>'
+      + '<span class="remote-test-src">' + ev.source + '</span>'
+      + '<span class="remote-test-detail">' + ev.detail + '</span>'
+      + '</div>';
+  }
+  log.innerHTML = html;
+}
+
+// Global keydown capture (runs in capture phase so we see it before other
+// handlers preventDefault).
+document.addEventListener('keydown', function(e) {
+  if (!_remoteTestActive) return;
+  _logRemoteEvent('keydown', 'key=' + e.key + ' code=' + e.code + ' keyCode=' + e.keyCode);
+}, true);
+
+function _startGamepadPolling() {
+  if (!('getGamepads' in navigator)) return;
+  if (_remoteTestGamepadInterval) return;
+  _remoteTestGamepadInterval = setInterval(function() {
+    try {
+      var gps = navigator.getGamepads ? navigator.getGamepads() : [];
+      for (var i = 0; i < gps.length; i++) {
+        var gp = gps[i];
+        if (!gp) continue;
+        var key = gp.id + '#' + gp.index;
+        var snapshot = gp.buttons.map(function(b) { return b.pressed ? 1 : 0; }).join('');
+        var prev = _remoteTestLastButtons[key];
+        if (prev === undefined) {
+          _logRemoteEvent('gamepad', 'connected: ' + gp.id + ' (' + gp.buttons.length + ' buttons)');
+        } else if (snapshot !== prev) {
+          for (var j = 0; j < gp.buttons.length; j++) {
+            var was = prev.charAt(j) === '1';
+            var is = gp.buttons[j].pressed;
+            if (is && !was) _logRemoteEvent('gamepad', 'button ' + j + ' pressed');
+          }
+        }
+        _remoteTestLastButtons[key] = snapshot;
+      }
+    } catch (e) {}
+  }, 80);
+}
+
+function _stopGamepadPolling() {
+  if (_remoteTestGamepadInterval) {
+    clearInterval(_remoteTestGamepadInterval);
+    _remoteTestGamepadInterval = null;
+  }
+}
 
 // Keyboard / Remote
 // The Satechi R1 (and Padcaster) send standard media keys — Vol +/- are the
