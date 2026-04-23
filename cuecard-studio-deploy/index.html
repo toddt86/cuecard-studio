@@ -1584,6 +1584,63 @@ body.ai-features-hidden .factcheck-btn { display: none !important; }
 #prompterScreen { display: none; height: 100vh; height: 100dvh; flex-direction: column; background: #000; position: relative; }
 #prompterScreen.active { display: flex; }
 
+/* ── CAMERA / RECORD VIDEO MODE ──
+   The <video> sits behind everything in the prompter screen. When the user
+   enters Record Video mode we add .camera-mode on #prompterScreen to reveal
+   the camera feed, soften the top/bottom dark gradients so the image shows
+   through, and surface the record/flip controls. The script itself still
+   renders through the existing prompter + cue card paths unchanged. */
+#cameraPreview { display: none; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; background: #000; }
+#prompterScreen.camera-mode #cameraPreview { display: block; }
+#prompterScreen.camera-mode #prompterContent { background: transparent; }
+#prompterScreen.camera-mode #prompterContent::before,
+#prompterScreen.camera-mode #prompterContent::after { height: 14%; opacity: 0.55; }
+#prompterScreen.camera-mode .prompter-text,
+#prompterScreen.camera-mode #cueCardText { text-shadow: 0 2px 14px rgba(0,0,0,0.85), 0 0 6px rgba(0,0,0,0.5); }
+/* Push cue-nav up so the record button (bottom 100px) isn't obscured. */
+#prompterScreen.camera-mode .cue-nav { bottom: 200px; }
+
+#cameraControls { display: none; position: absolute; bottom: 96px; left: 0; right: 0; flex-direction: column; align-items: center; gap: 12px; z-index: 25; pointer-events: none; }
+#prompterScreen.camera-mode #cameraControls { display: flex; }
+#cameraControls > * { pointer-events: auto; }
+
+.camera-record-btn {
+  width: 74px; height: 74px; border-radius: 50%;
+  border: 4px solid #fff; background: transparent; cursor: pointer; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.12s ease;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.45);
+}
+.camera-record-btn:active { transform: scale(0.94); }
+.camera-record-btn .record-icon {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--accent);
+  transition: width 0.2s ease, height 0.2s ease, border-radius 0.2s ease;
+}
+.camera-record-btn.recording .record-icon { width: 28px; height: 28px; border-radius: 6px; }
+
+.camera-flip-btn {
+  position: absolute; right: 28px; top: 50%; transform: translateY(-50%);
+  width: 48px; height: 48px; border-radius: 50%;
+  background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.25);
+  color: #fff; font-size: 22px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.camera-flip-btn:active { transform: translateY(-50%) scale(0.94); }
+.camera-flip-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.record-timer {
+  display: none;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 600;
+  color: #fff; background: rgba(204,40,40,0.95);
+  padding: 5px 14px 5px 10px; border-radius: 20px;
+  letter-spacing: 0.5px;
+}
+.record-timer::before { content: '\25CF'; margin-right: 6px; animation: recordBlink 1.1s ease-in-out infinite; }
+@keyframes recordBlink { 50% { opacity: 0.25; } }
+#cameraControls.recording .record-timer { display: inline-block; }
+
 #countdown { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.92); z-index: 100; align-items: center; justify-content: center; flex-direction: column; }
 #countdown.active { display: flex; }
 #countdownNumber { font-size: 120px; font-weight: 700; color: var(--accent); font-family: var(--font-mono); line-height: 1; animation: countPulse 1s ease-in-out infinite; }
@@ -2060,6 +2117,7 @@ body.ai-features-hidden .factcheck-btn { display: none !important; }
     </div>
 
     <button class="start-btn" id="startPrompterBtn" onclick="startPrompter()">Start Prompter</button>
+    <button class="start-btn" id="recordVideoBtn" onclick="startRecordMode()" style="display:none;background:transparent;border:2px solid var(--accent);color:var(--accent);box-shadow:none;margin-top:8px;">&#9679; Record Video</button>
     <button class="start-btn" id="goLiveBtn" onclick="enterLiveMode()" style="display:none;background:transparent;border:2px solid var(--accent);color:var(--accent);box-shadow:none;margin-top:8px;">&#9673; Go Live - Receive Scripts Remotely</button>
   </div>
 
@@ -2310,6 +2368,12 @@ body.ai-features-hidden .factcheck-btn { display: none !important; }
 
 <!-- ════════ PROMPTER ════════ -->
 <div id="prompterScreen">
+  <!-- Camera preview for Record Video mode. Lives BEHIND the prompter content
+       (z-index 0) so the script scrolls on top of it. The <video> shows the
+       stream for the user, but recording uses the raw MediaStream via
+       MediaRecorder — so the text overlay is not part of the saved file. -->
+  <video id="cameraPreview" autoplay playsinline muted></video>
+
   <div id="progressBar"></div>
   <div id="elapsedTime">00:00</div>
   <div id="speedFlash"></div>
@@ -2324,6 +2388,17 @@ body.ai-features-hidden .factcheck-btn { display: none !important; }
     <div class="cue-counter" id="cueCounter">1 / 1</div>
     <div id="cueCardText"></div>
 
+  </div>
+
+  <!-- Record Video controls: shown only when #prompterScreen has .camera-mode.
+       Record button is the primary action. Flip button switches front/rear
+       camera. Timer shows elapsed recording time and blinks while recording. -->
+  <div id="cameraControls">
+    <div class="record-timer" id="recordTimer">00:00</div>
+    <button class="camera-record-btn" id="cameraRecordBtn" onclick="toggleRecord()" aria-label="Record video">
+      <span class="record-icon"></span>
+    </button>
+    <button class="camera-flip-btn" id="cameraFlipBtn" onclick="flipCamera()" title="Flip camera" aria-label="Flip camera">&#8646;</button>
   </div>
 
   <div id="prompterHUD">
@@ -2650,6 +2725,7 @@ function applyProGating() {
   var saveBtn = document.getElementById('saveScriptBtn');
   var sendBtn = document.getElementById('sendToPrompterBtn');
   var startBtn = document.getElementById('startPrompterBtn');
+  var recordBtn = document.getElementById('recordVideoBtn');
   var proBadge = document.getElementById('proBadge');
 
   if (currentUser && isPro) {
@@ -2659,6 +2735,7 @@ function applyProGating() {
     saveBtn.onclick = openSaveModal;
     sendBtn.onclick = sendToPrompter;
     if (startBtn) startBtn.onclick = startPrompter;
+    if (recordBtn) { recordBtn.style.display = ''; recordBtn.onclick = startRecordMode; }
     if (proBadge) proBadge.style.display = '';
     document.getElementById('manageSubBtn').style.display = '';
   } else if (currentUser) {
@@ -2668,6 +2745,7 @@ function applyProGating() {
     saveBtn.onclick = showUpgradeModal;
     sendBtn.onclick = showUpgradeModal;
     if (startBtn) startBtn.onclick = showUpgradeModal;
+    if (recordBtn) { recordBtn.style.display = ''; recordBtn.onclick = showUpgradeModal; }
     if (proBadge) proBadge.style.display = 'none';
     document.getElementById('manageSubBtn').style.display = 'none';
     // Show upgrade modal automatically on first load for non-pro users
@@ -2675,6 +2753,7 @@ function applyProGating() {
   } else {
     // Not signed in
     goLiveBtn.style.display = 'none';
+    if (recordBtn) recordBtn.style.display = 'none';
     if (proBadge) proBadge.style.display = 'none';
     document.getElementById('manageSubBtn').style.display = 'none';
   }
@@ -3406,7 +3485,12 @@ const state = {
   _ambitfulLastArrowDownAt: 0, _ambitfulLastResetAt: 0,
   cueSplitMode: 'sentence',
   chunkSize: 12, triggerOffset: 4, voiceRecognition: null, voiceListening: false,
-  _voiceLastAdvanceAt: 0, _voiceRestartTimer: null
+  _voiceLastAdvanceAt: 0, _voiceRestartTimer: null,
+  // Record Video mode: overlays script on camera preview, records the
+  // raw camera stream via MediaRecorder (not the DOM), saves as MP4/WebM.
+  recordMode: false, cameraFacing: 'user', cameraStream: null,
+  mediaRecorder: null, recordChunks: [],
+  recordStartMs: 0, recordTimerInterval: null, recordMimeType: ''
 };
 
 function setMode(mode) {
@@ -5147,9 +5231,232 @@ function toggleFullscreen() {
   else { if (document.exitFullscreen) document.exitFullscreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); }
 }
 
+// ════════════════ RECORD VIDEO MODE ════════════════
+// Reuses the existing prompter / cue card rendering, just overlaid on a
+// camera feed. Recording captures the raw MediaStream (video + audio) so
+// the text on screen is NOT baked into the saved file — it's a guide for
+// the speaker only. Pro-gated via applyProGating.
+
+async function startRecordMode() {
+  const script = document.getElementById('scriptInput').value.trim();
+  if (!script) {
+    document.getElementById('scriptInput').focus();
+    document.getElementById('scriptInput').style.borderColor = 'var(--danger)';
+    setTimeout(function() { document.getElementById('scriptInput').style.borderColor = ''; }, 1500);
+    return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+    showToast('Camera recording not supported in this browser');
+    return;
+  }
+  // Ask for camera first so the permission prompt appears before we kick
+  // off the normal prompter flow. If denied, bail without entering the mode.
+  try {
+    await acquireCameraStream();
+  } catch (err) {
+    return;
+  }
+  state.recordMode = true;
+  document.getElementById('prompterScreen').classList.add('camera-mode');
+  await startPrompter();
+}
+
+async function acquireCameraStream() {
+  // Release any prior stream before requesting a new one (e.g. on flip).
+  if (state.cameraStream) {
+    state.cameraStream.getTracks().forEach(function(t) { t.stop(); });
+    state.cameraStream = null;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: state.cameraFacing || 'user', width: { ideal: 1080 }, height: { ideal: 1920 } },
+      audio: true
+    });
+    state.cameraStream = stream;
+    const preview = document.getElementById('cameraPreview');
+    if (preview) {
+      preview.srcObject = stream;
+      // Mirror the front-camera preview so the speaker sees a "natural"
+      // selfie view, matching native camera apps. This is CSS-only — the
+      // recorded video is unaffected because MediaRecorder reads the raw
+      // stream, not the DOM.
+      preview.style.transform = (state.cameraFacing === 'user') ? 'scaleX(-1)' : '';
+    }
+    return stream;
+  } catch (err) {
+    console.error('getUserMedia failed:', err);
+    if (err && err.name === 'NotAllowedError') showToast('Camera permission denied. Enable it in browser settings.');
+    else if (err && err.name === 'NotFoundError') showToast('No camera found on this device');
+    else if (err && err.name === 'NotReadableError') showToast('Camera is in use by another app');
+    else showToast('Could not access camera');
+    throw err;
+  }
+}
+
+function releaseCameraStream() {
+  if (state.cameraStream) {
+    state.cameraStream.getTracks().forEach(function(t) { t.stop(); });
+    state.cameraStream = null;
+  }
+  const preview = document.getElementById('cameraPreview');
+  if (preview) { preview.srcObject = null; preview.style.transform = ''; }
+}
+
+async function flipCamera() {
+  if (state.mediaRecorder && state.mediaRecorder.state === 'recording') {
+    showToast('Stop recording before switching cameras');
+    return;
+  }
+  const prev = state.cameraFacing || 'user';
+  state.cameraFacing = (prev === 'user') ? 'environment' : 'user';
+  try {
+    await acquireCameraStream();
+  } catch (err) {
+    // Rollback to the previous camera so the user isn't stuck with a black
+    // preview if the other lens is unavailable.
+    state.cameraFacing = prev;
+    try { await acquireCameraStream(); } catch (e) {}
+  }
+}
+
+function pickRecorderMimeType() {
+  if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return '';
+  // Prefer MP4 (iOS Safari 15+ supports this and it's what Todd asked for).
+  // Fall back to WebM on Chrome/Android where MP4 recording isn't available.
+  const candidates = [
+    'video/mp4;codecs=avc1,mp4a',
+    'video/mp4;codecs=avc1',
+    'video/mp4',
+    'video/webm;codecs=h264,opus',
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm'
+  ];
+  for (var i = 0; i < candidates.length; i++) {
+    if (MediaRecorder.isTypeSupported(candidates[i])) return candidates[i];
+  }
+  return '';
+}
+
+function toggleRecord() {
+  if (!state.cameraStream) { showToast('Camera not ready'); return; }
+  if (state.mediaRecorder && state.mediaRecorder.state === 'recording') {
+    stopRecording();
+  } else {
+    startRecording();
+  }
+}
+
+function startRecording() {
+  state.recordMimeType = pickRecorderMimeType();
+  state.recordChunks = [];
+  try {
+    state.mediaRecorder = state.recordMimeType
+      ? new MediaRecorder(state.cameraStream, { mimeType: state.recordMimeType })
+      : new MediaRecorder(state.cameraStream);
+  } catch (err) {
+    console.error('MediaRecorder init failed:', err);
+    showToast('Could not start recording');
+    return;
+  }
+  state.mediaRecorder.ondataavailable = function(e) {
+    if (e.data && e.data.size > 0) state.recordChunks.push(e.data);
+  };
+  state.mediaRecorder.onstop = function() { finalizeRecording(); };
+  state.mediaRecorder.onerror = function(e) {
+    console.error('MediaRecorder error:', e);
+    showToast('Recording error');
+  };
+  try {
+    // 1-second chunks keep memory bounded and give us resilience if the
+    // browser kills the recorder (we'd still have the chunks so far).
+    state.mediaRecorder.start(1000);
+  } catch (err) {
+    console.error('MediaRecorder start failed:', err);
+    showToast('Could not start recording');
+    return;
+  }
+  state.recordStartMs = Date.now();
+  var btn = document.getElementById('cameraRecordBtn');
+  var controls = document.getElementById('cameraControls');
+  var flipBtn = document.getElementById('cameraFlipBtn');
+  if (btn) btn.classList.add('recording');
+  if (controls) controls.classList.add('recording');
+  if (flipBtn) flipBtn.disabled = true;
+  updateRecordTimer();
+  state.recordTimerInterval = setInterval(updateRecordTimer, 500);
+}
+
+function stopRecording() {
+  if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
+    try { state.mediaRecorder.stop(); } catch (e) {}
+  }
+  clearInterval(state.recordTimerInterval);
+  state.recordTimerInterval = null;
+  var btn = document.getElementById('cameraRecordBtn');
+  var controls = document.getElementById('cameraControls');
+  var flipBtn = document.getElementById('cameraFlipBtn');
+  if (btn) btn.classList.remove('recording');
+  if (controls) controls.classList.remove('recording');
+  if (flipBtn) flipBtn.disabled = false;
+}
+
+function updateRecordTimer() {
+  var el = document.getElementById('recordTimer');
+  if (!el) return;
+  var elapsed = Math.max(0, Math.floor((Date.now() - state.recordStartMs) / 1000));
+  var m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+  var s = (elapsed % 60).toString().padStart(2, '0');
+  el.textContent = m + ':' + s;
+}
+
+function finalizeRecording() {
+  if (!state.recordChunks || !state.recordChunks.length) {
+    showToast('Recording was empty');
+    return;
+  }
+  var mime = state.recordMimeType || 'video/webm';
+  var ext = (mime.indexOf('mp4') >= 0) ? 'mp4' : 'webm';
+  var blob = new Blob(state.recordChunks, { type: mime });
+  state.recordChunks = [];
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  var d = new Date();
+  var pad = function(n) { return String(n).padStart(2, '0'); };
+  var ts = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+    + '_' + pad(d.getHours()) + '-' + pad(d.getMinutes()) + '-' + pad(d.getSeconds());
+  a.href = url;
+  a.download = 'cuecard-' + ts + '.' + ext;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Hold the object URL long enough for the download to actually start on
+  // slow devices, then free the blob.
+  setTimeout(function() { URL.revokeObjectURL(url); }, 30000);
+  showToast('Recording saved');
+}
+
 function exitPrompter() {
   state.playing = false; cancelAnimationFrame(state.animFrame); stopElapsedTimer(); releaseWakeLock();
   stopVoiceRecognition();
+  // Tear down record mode: stop recorder (onstop finalizes the download),
+  // release camera tracks, clear timers and UI state.
+  if (state.recordMode) {
+    if (state.mediaRecorder && state.mediaRecorder.state === 'recording') {
+      try { state.mediaRecorder.stop(); } catch (e) {}
+    }
+    clearInterval(state.recordTimerInterval);
+    state.recordTimerInterval = null;
+    releaseCameraStream();
+    state.recordMode = false;
+    document.getElementById('prompterScreen').classList.remove('camera-mode');
+    var rbtn = document.getElementById('cameraRecordBtn');
+    var rctrl = document.getElementById('cameraControls');
+    var fbtn = document.getElementById('cameraFlipBtn');
+    if (rbtn) rbtn.classList.remove('recording');
+    if (rctrl) rctrl.classList.remove('recording');
+    if (fbtn) fbtn.disabled = false;
+  }
   if (document.fullscreenElement || document.webkitFullscreenElement) { if (document.exitFullscreen) document.exitFullscreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); }
   document.getElementById('prompterScreen').classList.remove('active'); document.getElementById('cueCardScreen').classList.remove('active');
   if (state.inLiveMode) {
